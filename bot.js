@@ -20,7 +20,6 @@ function parse(text) {
     if (t.startsWith(c)) return { type: "music", q: text.slice(c.length).trim() };
   }
   if ([`${PREFIX}help`, `${PREFIX}comandos`, `${PREFIX}ajuda`].some(c => t === c)) return { type: "help" };
-  if (t.startsWith(PREFIX)) return { type: "unknown" };
   return null;
 }
 
@@ -36,11 +35,11 @@ async function sendAudio(client, to, filePath, title) {
 const handler = async (client, msg, text) => {
   if (text.includes(IGNORE)) return;
   if (IGNORED.includes(msg.from)) return;
+  if (!text.startsWith(PREFIX)) return;
   const cmd = parse(text);
   if (!cmd) return;
 
   if (cmd.type === "help") return await msg.reply(HELP);
-  if (cmd.type === "unknown") return await msg.reply(`Use ${PREFIX}help para comandos.`);
 
   if (cmd.type === "music" && cmd.q) {
     try {
