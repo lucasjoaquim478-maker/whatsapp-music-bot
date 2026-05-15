@@ -92,6 +92,13 @@ function Update-Application($remote) {
     $extracted = Get-ChildItem -LiteralPath $tempDir -Directory | Select-Object -First 1
     if (-not $extracted) { throw "Pasta extraída não encontrada" }
 
+    $currentExe = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
+    $newExe = Join-Path $extracted.FullName "launcher.exe"
+    $newExePath = Join-Path $ScriptDir "launcher.exe.new"
+    if (Test-Path -LiteralPath $newExe) {
+      [System.IO.File]::Copy($newExe, $newExePath, $true) | Out-Null
+    }
+
     $batchContent = @"
 @echo off
 title Aplicando atualizacao...
@@ -99,20 +106,10 @@ set "SRC=$($extracted.FullName)"
 set "DST=$ScriptDir"
 xcopy "%SRC%" "%DST%" /E /I /Y >NUL
 if exist "%DST%\node_modules" rmdir /S /Q "%DST%\node_modules" >NUL 2>NUL
-echo Aplicado com sucesso!
 exit
 "@
     $batchFile = Join-Path $env:TEMP "_apply_update.bat"
     $batchContent | Set-Content -LiteralPath $batchFile -Encoding ASCII
-
-    Write-Color "✅ Atualização aplicada!" Green
-
-    $currentExe = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
-    $newExe = Join-Path $extracted.FullName "launcher.exe"
-    $newExePath = Join-Path $ScriptDir "launcher.exe.new"
-    if (Test-Path -LiteralPath $newExe) {
-      [System.IO.File]::Copy($newExe, $newExePath, $true) | Out-Null
-    }
 
     $restartContent = @"
 @echo off
@@ -128,11 +125,13 @@ exit
 "@
     $restartFile = Join-Path $ScriptDir "_restart.bat"
     $restartContent | Set-Content -LiteralPath $restartFile -Encoding ASCII
-    Start-Process -FilePath $restartFile -WindowStyle Hidden
-    exit 0
+
+    Write-Color "✅ Atualização baixada! Reiniciando para aplicar..." Green
+    $script:needsRestart = $true
 
   } catch {
     Write-Color "❌ Erro na atualização: $_" Red
+    $script:needsRestart = $false
   } finally {
     Remove-Item -Recurse -Force -LiteralPath $tempDir -ErrorAction SilentlyContinue
     Remove-Item -Force -LiteralPath $zipFile -ErrorAction SilentlyContinue
@@ -175,9 +174,15 @@ try {
 
   if ($remoteInfo -and (Compare-Versions $localVersion $remoteInfo.version)) {
     Write-Color "✨ Nova versão disponível: v$($remoteInfo.version)" Green
+    $script:needsRestart = $false
     Update-Application $remoteInfo
     try {
       @{ version = $remoteInfo.version } | ConvertTo-Json | Set-Content -LiteralPath $VersionFile
+      if ($script:needsRestart) {
+        Write-Color "🔄 Reiniciando para aplicar atualização..." Yellow
+        Start-Process -FilePath (Join-Path $ScriptDir "_restart.bat") -WindowStyle Hidden
+        exit 0
+      }
     } catch {
       Write-Color "⚠️  Não foi possível atualizar version.json" Yellow
     }
