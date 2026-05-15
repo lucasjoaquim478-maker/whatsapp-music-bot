@@ -6,9 +6,12 @@ import path from "path";
 
 const { MessageMedia } = pkg;
 const PREFIX = "!";
+const IGNORE = "🤖";
 const HELP = `🎵 *Comandos*
 ${PREFIX}play <música>  —  Baixa e envia em MP3
-${PREFIX}help           —  Mostra comandos`;
+${PREFIX}help           —  Mostra comandos
+
+Adicione "${IGNORE}" no final para o bot ignorar o comando.`;
 
 function parse(text) {
   const t = text.toLowerCase().trim();
@@ -30,6 +33,7 @@ async function sendAudio(client, to, filePath, title) {
 }
 
 const handler = async (client, msg, text) => {
+  if (text.includes(IGNORE)) return;
   const cmd = parse(text);
   if (!cmd) return;
 
