@@ -197,7 +197,10 @@ try {
 
   try {
     Set-Location -LiteralPath $ScriptDir
-    node index.js
+    cmd /c "node index.js" 2>&1 | ForEach-Object { Write-Host $_ }
+    if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne $null) {
+      Write-Color "⚠️  Node encerrou com código: $LASTEXITCODE" Yellow
+    }
   } catch {
     Write-Color "❌ Erro ao iniciar: $_" Red
   }
