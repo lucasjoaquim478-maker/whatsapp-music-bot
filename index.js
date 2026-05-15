@@ -24,7 +24,9 @@ const HELP_TEXT = `🎵 *Comandos do Bot*
 ${PREFIX}play <música>   —  Busca e envia a música
 ${PREFIX}tocar <música>  —  Busca e envia a música
 ${PREFIX}help            —  Mostra esta mensagem
-${PREFIX}comandos        —  Mostra esta mensagem`;
+${PREFIX}comandos        —  Mostra esta mensagem
+
+Envie qualquer mensagem começando com "${PREFIX}" seguido do comando.`;
 
 const userStates = new Map();
 
@@ -37,7 +39,7 @@ const client = createClient();
 
 function parseCommand(text) {
   const lower = text.toLowerCase().trim();
-  for (const cmd of [`${PREFIX}play `, `${PREFIX}tocar `]) {
+  for (const cmd of [`${PREFIX}play `, `${PREFIX}tocar `, `${PREFIX}baixar `, `${PREFIX}musica `, `${PREFIX}search `]) {
     if (lower.startsWith(cmd)) {
       return { type: "music", query: text.slice(cmd.length).trim() };
     }
