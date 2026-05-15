@@ -71,7 +71,12 @@ const musicFlow = async (msg, chat, query) => {
     }
   } catch (err) {
     const m = err.message || "Erro desconhecido";
-    await msg.reply(m.includes("muito longa") ? `❌ ${m}` : `❌ ${m}`);
+    if (m.includes("e.replace")) {
+      await msg.reply("❌ Erro interno. Já estou corrigindo, tente de novo em alguns minutos.");
+      console.error("Stack:", err.stack);
+      return;
+    }
+    await msg.reply(`❌ ${m}`);
   }
 };
 
