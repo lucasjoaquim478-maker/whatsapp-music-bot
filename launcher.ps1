@@ -5,10 +5,16 @@
   Verifica atualizações no GitHub, baixa se houver, e inicia o bot.
 #>
 
+$ScriptDir = if ($ScriptDir) {
+  $ScriptDir
+} else {
+  [System.IO.Path]::GetDirectoryName([System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName)
+}
+
 $RepoOwner = "lucasjoaquim478-maker"
 $RepoName = "whatsapp-music-bot"
-$VersionFile = Join-Path $PSScriptRoot "version.json"
-$BotScript = Join-Path $PSScriptRoot "index.js"
+$VersionFile = Join-Path $ScriptDir "version.json"
+$BotScript = Join-Path $ScriptDir "index.js"
 
 function Write-Color($Text, $Color) {
   Write-Host $Text -ForegroundColor $Color
@@ -67,7 +73,7 @@ function Update-Application($remote) {
 
     $exclude = @('node_modules', '.env', 'session', '.wwebjs_auth', '.wwebjs_cache')
     Get-ChildItem $extracted.FullName | Where-Object { $_.Name -notin $exclude } | ForEach-Object {
-      $dest = Join-Path $PSScriptRoot $_.Name
+      $dest = Join-Path $ScriptDir $_.Name
       if ($_.PSIsContainer) {
         if (Test-Path $dest) { Remove-Item -Recurse -Force $dest }
         Copy-Item -Recurse -Path $_.FullName -Destination $dest
@@ -87,10 +93,10 @@ function Update-Application($remote) {
 
 function Install-Dependencies {
   Write-Color "📦 Verificando dependências..." Yellow
-  $npmPath = Join-Path $PSScriptRoot "node_modules"
+  $npmPath = Join-Path $ScriptDir "node_modules"
   if (-not (Test-Path $npmPath)) {
     Write-Color "   Instalando npm packages..." Yellow
-    Set-Location $PSScriptRoot
+    Set-Location $ScriptDir
     npm install --production 2>&1 | Out-Null
   }
 }
@@ -123,7 +129,7 @@ Install-Dependencies
 Write-Color "`n🚀 Iniciando bot..." Cyan
 Write-Color "   Pressione Ctrl+C para parar`n" DarkGray
 
-Set-Location $PSScriptRoot
+Set-Location $ScriptDir
 node index.js
 
 Write-Color "`n❌ Bot encerrado. Pressione qualquer tecla para fechar..." DarkGray
