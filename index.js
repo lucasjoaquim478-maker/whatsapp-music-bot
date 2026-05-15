@@ -18,7 +18,9 @@ function cleanup() {
 process.on("exit", cleanup);
 process.on("SIGINT", () => { cleanup(); process.exit(); });
 process.on("uncaughtException", (err) => {
-  console.error("Erro não tratado:", err.message);
+  const log = `[${new Date().toISOString()}] ${err.stack || err.message}\n`;
+  fs.appendFileSync("erro.log", log);
+  console.error("Erro não tratado. Detalhes salvos em erro.log");
   cleanup();
 });
 
@@ -83,9 +85,10 @@ const musicFlow = async (msg, chat, query) => {
     throw lastErr || new Error("Nenhum vídeo disponível para download.");
   } catch (err) {
     const m = err.message || "Erro desconhecido";
+    const log = `[${new Date().toISOString()}] ${err.stack || err.message}\n`;
+    fs.appendFileSync("erro.log", log);
     if (m.includes("e.replace")) {
-      await msg.reply("❌ Erro interno. Já estou corrigindo, tente de novo em alguns minutos.");
-      console.error("Stack:", err.stack);
+      await msg.reply("❌ Erro salvo em erro.log. Mostre o conteudo pro criador.");
       return;
     }
     await msg.reply(`❌ ${m}`);
