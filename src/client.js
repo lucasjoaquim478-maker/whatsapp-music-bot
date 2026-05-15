@@ -1,50 +1,32 @@
-import { makeWASocket, useMultiFileAuthState, Browsers, DisconnectReason } from "@whiskeysockets/baileys";
+import { Client, LocalAuth } from "whatsapp-web.js";
 import qrcode from "qrcode-terminal";
-import path from "path";
+import fs from "fs";
 
-const authDir = path.join(process.cwd(), "auth");
-
-export async function createClient(onMessage) {
-  const { state, saveCreds } = await useMultiFileAuthState(authDir);
-
-  const sock = makeWASocket({
-    auth: state,
-    browser: Browsers.windows("WhatsApp Music Bot"),
-    printQRInTerminal: false,
-    syncFullHistory: false,
-    markOnlineOnConnect: true,
+export function createClient(onMessage) {
+  const client = new Client({
+    authStrategy: new LocalAuth(),
+    puppeteer: {
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+    },
   });
 
-  sock.ev.on("creds.update", saveCreds);
-
-  sock.ev.on("connection.update", ({ qr, connection, lastDisconnect }) => {
-    if (qr) {
-      console.log("\nEscaneie o QR Code abaixo:\n");
-      qrcode.generate(qr, { small: true });
-    }
-    if (connection === "open") {
-      console.log("WhatsApp conectado com sucesso!");
-    }
-    if (connection === "close") {
-      const reason = lastDisconnect?.error?.output?.statusCode;
-      if (reason === DisconnectReason.loggedOut) {
-        console.log("Desconectado permanentemente. Delete a pasta 'auth' e reconecte.");
-      } else {
-        console.log("Reconectando em 5s...");
-        setTimeout(() => createClient(onMessage), 5000);
-      }
-    }
+  client.on("qr", (qr) => {
+    console.log("\nEscaneie o QR Code:\n");
+    qrcode.generate(qr, { small: true });
   });
 
-  sock.ev.on("messages.upsert", async ({ messages }) => {
-    for (const msg of messages) {
-      if (msg.key?.fromMe) continue;
-      if (msg.key?.remoteJid?.endsWith("@g.us")) continue;
-      const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || "";
-      if (!text.trim()) continue;
-      await onMessage(sock, msg, text.trim());
-    }
+  client.on("authenticated", () => console.log("Autenticado!"));
+  client.on("ready", () => console.log("WhatsApp conectado!"));
+  client.on("disconnected", (r) => console.log("Desconectado:", r));
+
+  client.on("message", async (msg) => {
+    if (msg.from.endsWith("@g.us")) return;
+    if (msg.fromMe) return;
+    const text = msg.body?.trim();
+    if (!text) return;
+    await onMessage(client, msg, text);
   });
 
-  return sock;
+  return client;
 }
