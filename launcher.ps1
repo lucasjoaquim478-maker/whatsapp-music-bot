@@ -92,57 +92,50 @@ function Update-Application($remote) {
     $extracted = Get-ChildItem -LiteralPath $tempDir -Directory | Select-Object -First 1
     if (-not $extracted) { throw "Pasta extraída não encontrada" }
 
-    $exclude = @('node_modules', '.env', 'session', '.wwebjs_auth', '.wwebjs_cache')
-    Get-ChildItem -LiteralPath $extracted.FullName | Where-Object { $_.Name -notin $exclude } | ForEach-Object {
-      $dest = Join-Path $ScriptDir $_.Name
-      if ($_.PSIsContainer) {
-        if (Test-Path -LiteralPath $dest) { Remove-Item -Recurse -Force -LiteralPath $dest }
-        [System.IO.Directory]::CreateDirectory($dest) | Out-Null
-        foreach ($file in [System.IO.Directory]::GetFiles($_.FullName, "*", [System.IO.SearchOption]::AllDirectories)) {
-          $rel = $file.Substring($_.FullName.Length + 1)
-          $destFile = Join-Path $dest $rel
-          $destDir = [System.IO.Path]::GetDirectoryName($destFile)
-          if (-not (Test-Path -LiteralPath $destDir)) { [System.IO.Directory]::CreateDirectory($destDir) | Out-Null }
-          [System.IO.File]::Copy($file, $destFile, $true) | Out-Null
-        }
-      } else {
-        [System.IO.File]::Copy($_.FullName, $dest, $true) | Out-Null
-      }
-    }
+    $batchContent = @"
+@echo off
+title Aplicando atualizacao...
+set "SRC=$($extracted.FullName)"
+set "DST=$ScriptDir"
+xcopy "%SRC%" "%DST%" /E /I /Y >NUL
+if exist "%DST%\node_modules" rmdir /S /Q "%DST%\node_modules" >NUL 2>NUL
+echo Aplicado com sucesso!
+exit
+"@
+    $batchFile = Join-Path $env:TEMP "_apply_update.bat"
+    $batchContent | Set-Content -LiteralPath $batchFile -Encoding ASCII
 
     Write-Color "✅ Atualização aplicada!" Green
 
-    $newExe = Join-Path $extracted.FullName "launcher.exe"
     $currentExe = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
-    if (Test-Path -LiteralPath $newExe -and $currentExe -ne (Join-Path $extracted.FullName "launcher.exe")) {
-      $newExePath = Join-Path $ScriptDir "launcher.exe.new"
+    $newExe = Join-Path $extracted.FullName "launcher.exe"
+    $newExePath = Join-Path $ScriptDir "launcher.exe.new"
+    if (Test-Path -LiteralPath $newExe) {
       [System.IO.File]::Copy($newExe, $newExePath, $true) | Out-Null
-      Write-Color "🔄 Atualização do launcher pendente. O aplicativo será reiniciado..." Yellow
+    }
 
-      $batchContent = @"
+    $restartContent = @"
 @echo off
-title Atualizando WhatsApp Music Bot...
-:wait
-tasklist /FI "IMAGENAME eq launcher.exe" 2>NUL | find /I "launcher.exe" >NUL
-if "%errorlevel%"=="0" (
-  timeout /t 1 /nobreak >NUL
-  goto wait
+title Reiniciando WhatsApp Music Bot...
+timeout /t 2 /nobreak >NUL
+call "$batchFile"
+if exist "$newExePath" (
+  copy /Y "$newExePath" "$currentExe" >NUL
+  del "$newExePath"
 )
-copy /Y "$newExePath" "$currentExe" >NUL
-del "$newExePath"
 start "" "$currentExe"
 exit
 "@
-      $batchFile = Join-Path $ScriptDir "_restart.bat"
-      $batchContent | Set-Content -LiteralPath $batchFile -Encoding ASCII
-      Start-Process -FilePath $batchFile -WindowStyle Hidden
-      exit 0
-    }
+    $restartFile = Join-Path $ScriptDir "_restart.bat"
+    $restartContent | Set-Content -LiteralPath $restartFile -Encoding ASCII
+    Start-Process -FilePath $restartFile -WindowStyle Hidden
+    exit 0
+
   } catch {
     Write-Color "❌ Erro na atualização: $_" Red
   } finally {
-    if (Test-Path -LiteralPath $tempDir) { Remove-Item -Recurse -Force -LiteralPath $tempDir -ErrorAction SilentlyContinue }
-    if (Test-Path -LiteralPath $zipFile) { Remove-Item -Force -LiteralPath $zipFile -ErrorAction SilentlyContinue }
+    Remove-Item -Recurse -Force -LiteralPath $tempDir -ErrorAction SilentlyContinue
+    Remove-Item -Force -LiteralPath $zipFile -ErrorAction SilentlyContinue
   }
 }
 
@@ -152,7 +145,12 @@ function Install-Dependencies {
   if (-not (Test-Path -LiteralPath $npmPath)) {
     Write-Color "   Instalando npm packages (pode levar alguns minutos)..." Yellow
     Set-Location -LiteralPath $ScriptDir
+    $env:PUPPETEER_SKIP_DOWNLOAD = "true"
     npm install 2>&1 | ForEach-Object { Write-Color "   $_" DarkGray }
+    if ($LASTEXITCODE -ne 0) {
+      Write-Color "⚠️  npm install falhou. Tentando de novo ignorando puppeteer..." Yellow
+      npm install --ignore-scripts 2>&1 | ForEach-Object { Write-Color "   $_" DarkGray }
+    }
     if ($LASTEXITCODE -ne 0) {
       Write-Color "❌ Falha ao instalar dependências. Execute manualmente: npm install" Red
       Write-Color "   Continuando mesmo assim..." Yellow
