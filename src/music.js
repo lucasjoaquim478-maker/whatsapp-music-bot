@@ -1,43 +1,63 @@
-import { spawn } from "child_process";
+import { spawn, execSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import { config } from "./config.js";
 
-const tools = {
-  ytDlp: path.join(config.cacheDir, "yt-dlp.exe"),
-  ffmpeg: path.join(config.cacheDir, "ffmpeg.exe"),
-};
+const ytDlp = path.join(config.cacheDir, "yt-dlp.exe");
+const ffmpeg = path.join(config.cacheDir, "ffmpeg.exe");
+let hasFfmpeg = false;
 
 async function dl(url, dest) {
   const r = await fetch(url);
-  if (!r.ok) throw new Error(`Falha ao baixar: HTTP ${r.status}`);
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
   fs.writeFileSync(dest, Buffer.from(await r.arrayBuffer()));
 }
 
 async function ensureTools() {
   fs.mkdirSync(config.cacheDir, { recursive: true });
-  if (!fs.existsSync(tools.ytDlp)) {
-    await dl("https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe", tools.ytDlp);
+
+  if (!fs.existsSync(ytDlp)) {
+    await dl("https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe", ytDlp);
   }
-  if (!fs.existsSync(tools.ffmpeg)) {
-    await dl("https://github.com/GyanD/codexffmpeg/releases/download/7.1/ffmpeg-7.1-essentials_build.zip", path.join(config.cacheDir, "ff.zip"));
-    const AdmZip = (await import("adm-zip")).default;
-    const zip = new AdmZip(path.join(config.cacheDir, "ff.zip"));
-    for (const e of zip.getEntries()) {
-      const n = path.basename(e.entryName);
-      if (n === "ffmpeg.exe") {
-        fs.writeFileSync(tools.ffmpeg, e.getData());
-        break;
+
+  if (!fs.existsSync(ffmpeg)) {
+    try {
+      const zip = path.join(config.cacheDir, "ff.zip");
+      await dl("https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip", zip);
+      execSync(`powershell -Command "Expand-Archive -Path '${zip}' -DestinationPath '${config.cacheDir}\\ff_temp' -Force"`, { timeout: 30000 });
+
+      const entries = fs.readdirSync(path.join(config.cacheDir, "ff_temp"));
+      for (const e of entries) {
+        findFfmpeg(path.join(config.cacheDir, "ff_temp", e));
       }
+      fs.rmSync(path.join(config.cacheDir, "ff_temp"), { recursive: true, force: true });
+      fs.unlinkSync(zip);
+      hasFfmpeg = fs.existsSync(ffmpeg);
+    } catch (e) {
+      console.log("FFmpeg não disponível, baixando sem conversão:", e.message);
+      hasFfmpeg = false;
+      try { fs.unlinkSync(path.join(config.cacheDir, "ff.zip")); } catch {}
+      try { fs.rmSync(path.join(config.cacheDir, "ff_temp"), { recursive: true, force: true }); } catch {}
     }
-    fs.unlinkSync(path.join(config.cacheDir, "ff.zip"));
+  } else {
+    hasFfmpeg = true;
   }
+}
+
+function findFfmpeg(dir) {
+  try {
+    for (const item of fs.readdirSync(dir)) {
+      const full = path.join(dir, item);
+      if (fs.statSync(full).isDirectory()) findFfmpeg(full);
+      else if (item === "ffmpeg.exe") fs.copyFileSync(full, ffmpeg);
+    }
+  } catch {}
 }
 
 function run(args, timeout = 30000) {
   return new Promise((resolve, reject) => {
     let o = "", e = "";
-    const p = spawn(tools.ytDlp, args, { timeout });
+    const p = spawn(ytDlp, args, { timeout });
     p.stdout.on("data", (d) => { o += d.toString(); });
     p.stderr.on("data", (d) => { e += d.toString(); });
     p.on("close", (c) => {
@@ -51,9 +71,8 @@ function run(args, timeout = 30000) {
 export async function searchMusic(query) {
   await ensureTools();
   const json = await run(["ytsearch5:" + query, "--dump-json", "--no-check-certificates", "--no-warnings", "--no-playlist"], 30000);
-  const lines = json.split("\n").filter(l => l.trim());
   const results = [];
-  for (const line of lines) {
+  for (const line of json.split("\n").filter(l => l.trim())) {
     try {
       const d = JSON.parse(line);
       if (d && d.id && (d.duration || 0) <= config.maxDuration) {
@@ -67,23 +86,22 @@ export async function searchMusic(query) {
 
 export async function downloadAudio(videoUrl) {
   await ensureTools();
-  const out = path.join(config.cacheDir, `audio_%(id)s.%(ext)s`);
+  const ext = hasFfmpeg ? "mp3" : "%(ext)s";
+  const out = path.join(config.cacheDir, `audio_%(id)s.${ext}`);
+  const args = [
+    videoUrl, "-f", "bestaudio[protocol!=m3u8]/bestaudio/best",
+    "--output", out, "--no-part", "--no-mtime",
+    "--prefer-free-formats", "--no-check-certificates", "--no-warnings",
+  ];
+  if (hasFfmpeg) args.push("--extract-audio", "--audio-format", "mp3", "--ffmpeg-location", config.cacheDir);
 
   return new Promise((resolve, reject) => {
-    const p = spawn(tools.ytDlp, [
-      videoUrl, "-f", "bestaudio[protocol!=m3u8]/bestaudio/best",
-      "--output", out,
-      "--extract-audio", "--audio-format", "mp3",
-      "--ffmpeg-location", config.cacheDir,
-      "--no-part", "--no-mtime", "--prefer-free-formats",
-      "--no-check-certificates", "--no-warnings",
-    ], { timeout: 180000 });
-
     let err = "";
+    const p = spawn(ytDlp, args, { timeout: 180000 });
     p.stderr.on("data", (d) => { err += d.toString(); });
     p.on("close", (c) => {
       try {
-        const files = fs.readdirSync(config.cacheDir).filter(f => f.startsWith("audio_") && f.endsWith(".mp3"));
+        const files = fs.readdirSync(config.cacheDir).filter(f => f.startsWith("audio_"));
         for (const f of files) {
           const fp = path.join(config.cacheDir, f);
           if (fs.statSync(fp).size > 1000) return resolve(fp);
