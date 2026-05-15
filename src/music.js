@@ -35,20 +35,24 @@ export async function downloadAudio(videoUrl) {
     let stderr = "";
     const proc = spawn(ytDlpPath, [
       videoUrl,
-      "-f", "bestaudio",
+      "-f", "bestaudio[ext=m4a]/bestaudio",
       "--output", output,
       "--no-check-certificates",
       "--no-warnings",
-      "--print", "filename",
     ]);
 
-    proc.stdout.on("data", () => {});
-    proc.stderr.on("data", (d) => { stderr += d.toString(); });
+    proc.stderr.on("data", (d) => {
+      stderr += d.toString();
+      process.stdout.write(d);
+    });
     proc.on("close", (code) => {
       const files = fs.readdirSync(config.cacheDir);
       const audioFile = files.find((f) => f.startsWith("audio_"));
-      if (audioFile) return resolve(path.join(config.cacheDir, audioFile));
-      reject(new Error(stderr || "Falha ao baixar áudio"));
+      if (audioFile && fs.statSync(path.join(config.cacheDir, audioFile)).size > 1000) {
+        return resolve(path.join(config.cacheDir, audioFile));
+      }
+      const msg = stderr.trim() || `Código de saída: ${code}`;
+      reject(new Error(msg.slice(0, 500)));
     });
     proc.on("error", (e) => reject(new Error(e.message)));
   });
