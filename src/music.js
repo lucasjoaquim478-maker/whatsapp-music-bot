@@ -1,6 +1,11 @@
 import { spawn } from "child_process";
 import fs from "fs";
 import path from "path";
+import { createRequire } from "module";
+
+const require = createRequire(import.meta.url);
+let ffmpegDir = null;
+try { ffmpegDir = path.dirname(require("ffmpeg-static")); } catch {}
 
 const cacheDir = path.join(process.cwd(), "temp");
 const ytDlp = path.join(cacheDir, "yt-dlp.exe");
@@ -45,15 +50,18 @@ export async function searchMusic(query) {
 
 export async function downloadAudio(videoUrl) {
   await ensureYtDlp();
-  const out = path.join(cacheDir, `audio_%(id)s.%(ext)s`);
+  const ext = ffmpegDir ? "mp3" : "%(ext)s";
+  const out = path.join(cacheDir, `audio_%(id)s.${ext}`);
+  const args = [
+    videoUrl, "-f", "bestaudio[protocol!=m3u8]/bestaudio/best",
+    "--output", out, "--no-part", "--no-mtime",
+    "--prefer-free-formats", "--no-check-certificates", "--no-warnings",
+  ];
+  if (ffmpegDir) args.push("--extract-audio", "--audio-format", "mp3", "--ffmpeg-location", ffmpegDir);
 
   return new Promise((resolve, reject) => {
     let err = "";
-    const p = spawn(ytDlp, [
-      videoUrl, "-f", "bestaudio[protocol!=m3u8]/bestaudio/best",
-      "--output", out, "--no-part", "--no-mtime",
-      "--prefer-free-formats", "--no-check-certificates", "--no-warnings",
-    ], { timeout: 120000 });
+    const p = spawn(ytDlp, args, { timeout: 120000 });
 
     p.stderr.on("data", (d) => { err += d.toString(); });
     p.on("close", (c) => {
