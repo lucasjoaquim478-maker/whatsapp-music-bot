@@ -1,8 +1,10 @@
 import { createClient } from "./src/client.js";
 import { searchMusic, downloadAudio, cleanCache } from "./src/music.js";
+import pkg from "whatsapp-web.js";
 import fs from "fs";
 import path from "path";
 
+const { MessageMedia } = pkg;
 const PREFIX = "!";
 const HELP = `🎵 *Comandos*
 ${PREFIX}play <música>  —  Baixa e envia em MP3
@@ -19,32 +21,8 @@ function parse(text) {
 }
 
 async function sendAudio(client, to, filePath, title) {
-  const MAX_RETRIES = 2;
-  for (let i = 0; i <= MAX_RETRIES; i++) {
-    try {
-      const buf = fs.readFileSync(filePath);
-      await client.sendMessage(to, buf, {
-        sendMediaAsDocument: false,
-        type: "audio",
-        caption: `🎵 ${title}`,
-      });
-      return true;
-    } catch (e1) {
-      try {
-        const buf = fs.readFileSync(filePath);
-        await client.sendMessage(to, buf, {
-          sendMediaAsDocument: true,
-          fileName: path.basename(filePath),
-          caption: `🎵 ${title}`,
-        });
-        return true;
-      } catch (e2) {
-        if (i === MAX_RETRIES) throw e2;
-        await new Promise(r => setTimeout(r, 1000));
-      }
-    }
-  }
-  return false;
+  const media = MessageMedia.fromFilePath(filePath);
+  await client.sendMessage(to, media, { caption: `🎵 ${title}` });
 }
 
 const handler = async (client, msg, text) => {
@@ -68,15 +46,10 @@ const handler = async (client, msg, text) => {
         try {
           const fp = await downloadAudio(v.url);
           if (!fs.existsSync(fp) || fs.statSync(fp).size <= 1000) continue;
-
           await chat.sendStateTyping();
-          const ok = await sendAudio(client, msg.from, fp, v.title);
+          await sendAudio(client, msg.from, fp, v.title);
           try { fs.unlinkSync(fp); } catch {}
-
-          if (ok) {
-            try { fs.appendFileSync("log.txt", `[${new Date().toISOString()}] OK: ${v.title}\n`); } catch {}
-            return;
-          }
+          return;
         } catch (e) {
           lastErr = e;
           try { fs.appendFileSync("log.txt", `[${new Date().toISOString()}] ERRO: ${e.message}\n`); } catch {}
