@@ -4,18 +4,50 @@ import fs from "fs";
 import path from "path";
 import { config } from "./config.js";
 
-const ytDlpPath = path.join(config.cacheDir, "yt-dlp.exe");
+const binDir = path.join(config.cacheDir, "bin");
 
-async function ensureYtDlp() {
-  if (fs.existsSync(ytDlpPath)) return;
+function binPath(name) {
+  return path.join(binDir, name);
+}
 
-  const url =
-    "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe";
+async function downloadFile(url, dest) {
   const res = await fetch(url);
-  if (!res.ok) throw new Error("Falha ao baixar yt-dlp.exe");
+  if (!res.ok) throw new Error(`Falha ao baixar ${dest}: HTTP ${res.status}`);
   const buf = Buffer.from(await res.arrayBuffer());
-  fs.writeFileSync(ytDlpPath, buf);
-  fs.chmodSync(ytDlpPath, 0o755);
+  fs.writeFileSync(dest, buf);
+}
+
+async function ensureTools() {
+  if (!fs.existsSync(binDir)) fs.mkdirSync(binDir, { recursive: true });
+
+  if (!fs.existsSync(binPath("yt-dlp.exe"))) {
+    await downloadFile(
+      "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe",
+      binPath("yt-dlp.exe")
+    );
+  }
+
+  if (!fs.existsSync(binPath("ffmpeg.exe"))) {
+    const zipPath = path.join(config.cacheDir, "ffmpeg.zip");
+    await downloadFile(
+      "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip",
+      zipPath
+    );
+    // Extract ffmpeg.exe and ffprobe.exe from the zip
+    const AdmZip = (await import("adm-zip")).default;
+    const zip = new AdmZip(zipPath);
+    const entries = zip.getEntries();
+    for (const entry of entries) {
+      const name = path.basename(entry.entryName);
+      if (name === "ffmpeg.exe" || name === "ffprobe.exe") {
+        const outPath = binPath(name);
+        if (!fs.existsSync(outPath)) {
+          fs.writeFileSync(outPath, entry.getData());
+        }
+      }
+    }
+    fs.unlinkSync(zipPath);
+  }
 }
 
 export async function searchMusic(query) {
@@ -41,34 +73,34 @@ export async function downloadAudio(videoUrl) {
     fs.mkdirSync(config.cacheDir, { recursive: true });
   }
 
-  await ensureYtDlp();
+  await ensureTools();
 
   const output = path.join(config.cacheDir, `audio_%(id)s.%(ext)s`);
 
   return new Promise((resolve, reject) => {
     const proc = execFile(
-      ytDlpPath,
+      binPath("yt-dlp.exe"),
       [
         videoUrl,
         "--extract-audio",
         "--audio-format", "mp3",
         "--output", output,
+        "--ffmpeg-location", binDir,
         "--no-check-certificates",
         "--no-warnings",
         "--prefer-free-formats",
-        "--add-header", "User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "--add-header", "Referer:https://www.youtube.com/",
       ],
-      { timeout: 120000 },
+      { timeout: 180000, maxBuffer: 50 * 1024 * 1024 },
       (err, stdout, stderr) => {
-        if (err) return reject(new Error(err.message));
+        if (err && !fs.existsSync(config.cacheDir)) {
+          return reject(new Error(err.message));
+        }
 
         const files = fs.readdirSync(config.cacheDir);
         const audioFile = files.find((f) => f.startsWith("audio_"));
         if (!audioFile) return reject(new Error("Áudio não foi gerado."));
 
-        const filePath = path.join(config.cacheDir, audioFile);
-        resolve(filePath);
+        resolve(path.join(config.cacheDir, audioFile));
       }
     );
   });
@@ -78,7 +110,8 @@ export function cleanCache() {
   try {
     const files = fs.readdirSync(config.cacheDir);
     for (const f of files) {
-      if (f !== "yt-dlp.exe") fs.unlinkSync(path.join(config.cacheDir, f));
+      const full = path.join(config.cacheDir, f);
+      if (f !== "bin" && fs.statSync(full).isFile()) fs.unlinkSync(full);
     }
   } catch {}
 }
