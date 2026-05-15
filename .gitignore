@@ -1,0 +1,10 @@
+node_modules/
+.env
+*.mp3
+*.mp4
+session/
+auth-data/
+.wwebjs_auth/
+.wwebjs_cache/
+dist/
+temp/
