@@ -1,45 +1,17 @@
-import { execFile } from "child_process";
+import ytdl from "@distube/ytdl-core";
 import ytSearch from "yt-search";
 import fs from "fs";
 import path from "path";
 import { config } from "./config.js";
 
-const binDir = path.join(config.cacheDir, "bin");
-const ytDlpPath = path.join(binDir, "yt-dlp.exe");
-
-async function downloadFile(url, dest) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Falha ao baixar: HTTP ${res.status}`);
-  const buf = Buffer.from(await res.arrayBuffer());
-  fs.writeFileSync(dest, buf);
-}
-
-async function ensureYtDlp() {
-  if (!fs.existsSync(binDir)) fs.mkdirSync(binDir, { recursive: true });
-  if (!fs.existsSync(ytDlpPath)) {
-    await downloadFile(
-      "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe",
-      ytDlpPath
-    );
-  }
-}
-
 export async function searchMusic(query) {
   const result = await ytSearch(query);
   const video = result.videos?.[0];
   if (!video) throw new Error("Nenhum resultado encontrado.");
-
-  const durationSec = video.seconds || 0;
-  if (durationSec > config.maxDuration) {
+  if ((video.seconds || 0) > config.maxDuration) {
     throw new Error(`Música muito longa (máx ${config.maxDuration}s).`);
   }
-
-  return {
-    title: video.title,
-    url: video.url,
-    duration: durationSec,
-    thumbnail: video.thumbnail,
-  };
+  return { title: video.title, url: video.url, duration: video.seconds, thumbnail: video.thumbnail };
 }
 
 export async function downloadAudio(videoUrl) {
@@ -47,44 +19,33 @@ export async function downloadAudio(videoUrl) {
     fs.mkdirSync(config.cacheDir, { recursive: true });
   }
 
-  await ensureYtDlp();
-
-  const output = path.join(config.cacheDir, `audio_%(id)s.%(ext)s`);
+  const filePath = path.join(config.cacheDir, `audio_${Date.now()}.mp3`);
 
   return new Promise((resolve, reject) => {
-    const proc = execFile(
-      ytDlpPath,
-      [
-        videoUrl,
-        "-f", "bestaudio",
-        "--output", output,
-        "--no-check-certificates",
-        "--no-warnings",
-        "--add-header", "User-Agent:Mozilla/5.0",
-      ],
-      { timeout: 180000, maxBuffer: 50 * 1024 * 1024 },
-      (err) => {
-        if (err) return reject(new Error(err.message));
+    const stream = ytdl(videoUrl, {
+      filter: "audioonly",
+      quality: "lowestaudio",
+    }).pipe(fs.createWriteStream(filePath));
 
-        const files = fs.readdirSync(config.cacheDir);
-        const audioFile = files.find((f) => f.startsWith("audio_"));
-        if (!audioFile) return reject(new Error("Áudio não foi gerado."));
-
-        resolve(path.join(config.cacheDir, audioFile));
+    stream.on("finish", () => {
+      if (fs.existsSync(filePath) && fs.statSync(filePath).size > 0) {
+        resolve(filePath);
+      } else {
+        try { fs.unlinkSync(filePath); } catch {}
+        reject(new Error("Arquivo vazio"));
       }
-    );
-
-    proc.stdout.on("data", () => {});
-    proc.stderr.on("data", () => {});
+    });
+    stream.on("error", (e) => {
+      try { fs.unlinkSync(filePath); } catch {}
+      reject(new Error(String(e?.message || e || "Erro desconhecido")));
+    });
   });
 }
 
 export function cleanCache() {
   try {
-    const files = fs.readdirSync(config.cacheDir);
-    for (const f of files) {
-      const full = path.join(config.cacheDir, f);
-      if (f !== "bin" && fs.statSync(full).isFile()) fs.unlinkSync(full);
+    for (const f of fs.readdirSync(config.cacheDir)) {
+      fs.unlinkSync(path.join(config.cacheDir, f));
     }
   } catch {}
 }
