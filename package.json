@@ -1,6 +1,6 @@
 {
   "name": "whatsapp-music-bot",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "WhatsApp bot que busca música na internet e envia MP3 usando IA",
   "main": "index.js",
   "type": "module",
