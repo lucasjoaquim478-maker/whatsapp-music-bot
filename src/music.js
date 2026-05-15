@@ -11,44 +11,44 @@ async function ensureYtDlp() {
 
   const res = await fetch("https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe");
   if (!res.ok) throw new Error("Falha ao baixar yt-dlp.exe");
-  const buf = Buffer.from(await res.arrayBuffer());
-  fs.writeFileSync(ytDlpPath, buf);
+  fs.writeFileSync(ytDlpPath, Buffer.from(await res.arrayBuffer()));
 }
 
-function runYtDlp(args) {
+function runYtDlp(args, timeout = 30000) {
   return new Promise((resolve, reject) => {
-    let stdout = "";
-    let stderr = "";
-    const proc = spawn(ytDlpPath, args, { timeout: 30000 });
-    proc.stdout.on("data", (d) => { stdout += d.toString(); });
-    proc.stderr.on("data", (d) => { stderr += d.toString(); });
+    let out = "";
+    let err = "";
+    const proc = spawn(ytDlpPath, args, { timeout });
+    proc.stdout.on("data", (d) => { out += d.toString(); });
+    proc.stderr.on("data", (d) => { err += d.toString(); });
     proc.on("close", (code) => {
-      if (code === 0 && stdout.trim()) return resolve(stdout.trim());
-      if (stdout.trim()) return resolve(stdout.trim());
-      reject(new Error(stderr.trim() || `Código: ${code}`));
+      if (out.trim()) return resolve(out.trim());
+      reject(new Error((err || `Código ${code}`).slice(0, 300)));
     });
-    proc.on("error", (e) => reject(e));
+    proc.on("error", (e) => reject(new Error(e.message)));
   });
 }
 
 export async function searchMusic(query) {
-  const json = await runYtDlp([
-    "ytsearch1:" + query,
-    "--dump-json",
-    "--no-check-certificates",
-    "--no-warnings",
-  ]);
-
   try {
+    const json = await runYtDlp([
+      "ytsearch1:" + query,
+      "--dump-json",
+      "--no-check-certificates",
+      "--no-warnings",
+    ], 15000);
+
     const data = JSON.parse(json.split("\n")[0]);
-    if (!data) throw Error();
+    if (!data || !data.id) throw Error();
+
     const duration = data.duration || 0;
     if (duration > config.maxDuration) {
       throw new Error(`Música muito longa (máx ${Math.floor(config.maxDuration / 60)}min).`);
     }
+
     return {
       title: data.title || "Desconhecido",
-      url: data.webpage_url || `https://youtube.com/watch?v=${data.id}`,
+      url: `https://youtube.com/watch?v=${data.id}`,
       duration,
       thumbnail: data.thumbnail || "",
     };
@@ -68,23 +68,22 @@ export async function downloadAudio(videoUrl) {
     let stderr = "";
     const proc = spawn(ytDlpPath, [
       videoUrl,
-      "-f", "bestaudio[ext=m4a]/bestaudio",
+      "-f", "bestaudio/best",
       "--output", output,
       "--no-check-certificates",
       "--no-warnings",
-    ]);
+    ], { timeout: 120000 });
 
     proc.stderr.on("data", (d) => { stderr += d.toString(); });
     proc.on("close", (code) => {
-      const files = fs.readdirSync(config.cacheDir);
-      const audioFile = files.find((f) => f.startsWith("audio_") && f.endsWith(".m4a") || f.startsWith("audio_") && f.endsWith(".webm"));
-      if (audioFile) {
-        const fp = path.join(config.cacheDir, audioFile);
+      const files = fs.readdirSync(config.cacheDir).filter(f => f.startsWith("audio_"));
+      for (const f of files) {
+        const fp = path.join(config.cacheDir, f);
         if (fs.statSync(fp).size > 1000) return resolve(fp);
       }
-      reject(new Error(stderr.slice(0, 400) || `Código: ${code}`));
+      reject(new Error((stderr || `Código ${code}`).slice(0, 300)));
     });
-    proc.on("error", (e) => reject(new Error(String(e))));
+    proc.on("error", (e) => reject(new Error(e.message)));
   });
 }
 

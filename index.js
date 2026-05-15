@@ -10,11 +10,16 @@ if (fs.existsSync(lockFile)) {
   process.exit(0);
 }
 fs.writeFileSync(lockFile, String(process.pid));
-process.on("exit", () => { try { fs.unlinkSync(lockFile); } catch {} });
-process.on("SIGINT", () => { try { fs.unlinkSync(lockFile); } catch {}; cleanCache(); process.exit(); });
+
+function cleanup() {
+  try { fs.unlinkSync(lockFile); } catch {}
+  cleanCache();
+}
+process.on("exit", cleanup);
+process.on("SIGINT", () => { cleanup(); process.exit(); });
 process.on("uncaughtException", (err) => {
   console.error("Erro não tratado:", err.message);
-  try { fs.unlinkSync(lockFile); } catch {}
+  cleanup();
 });
 
 const PREFIX = config.prefix || "!";
@@ -27,13 +32,6 @@ ${PREFIX}help            —  Mostra esta mensagem
 ${PREFIX}comandos        —  Mostra esta mensagem
 
 Envie qualquer mensagem começando com "${PREFIX}" seguido do comando.`;
-
-const userStates = new Map();
-
-function getUserState(from) {
-  if (!userStates.has(from)) userStates.set(from, {});
-  return userStates.get(from);
-}
 
 const client = createClient();
 
@@ -61,60 +59,46 @@ const musicFlow = async (msg, chat, query) => {
     await msg.reply(`🎵 ${video.title}\n⏱ ${Math.floor(video.duration / 60)}:${String(video.duration % 60).padStart(2, "0")}\n📥 Baixando áudio...`);
     const filePath = await downloadAudio(video.url);
     await chat.sendStateTyping();
-    if (fs.existsSync(filePath) && fs.statSync(filePath).size > 0) {
+    if (fs.existsSync(filePath) && fs.statSync(filePath).size > 1000) {
       await client.sendMessage(msg.from, fs.readFileSync(filePath), {
         sendMediaAsDocument: true,
-        fileName: filePath.split(/[\\/]/).pop(),
+        fileName: path.basename(filePath),
         caption: `🎵 ${video.title}`,
       });
-      fs.unlinkSync(filePath);
+      try { fs.unlinkSync(filePath); } catch {}
     } else {
       await msg.reply("❌ Erro ao processar o áudio. Tente outra música.");
     }
   } catch (err) {
-    const msg2 = err.message.includes("muito longa")
-      ? `❌ ${err.message}`
-      : `❌ Erro ao baixar: ${err.message}`;
-    await msg.reply(msg2);
+    const m = err.message || "Erro desconhecido";
+    await msg.reply(m.includes("muito longa") ? `❌ ${m}` : `❌ ${m}`);
   }
 };
 
 client.on("message", async (msg) => {
   if (msg.from.endsWith("@g.us")) return;
   if (msg.fromMe) return;
-  if (config.owner && msg.from !== config.owner) return;
 
   const chat = await msg.getChat();
   const text = msg.body?.trim();
-
   if (!text || !text.startsWith(PREFIX)) return;
 
   const cmd = parseCommand(text);
+  if (!cmd) return;
 
-  if (cmd?.type === "help") {
+  if (cmd.type === "help") {
     await msg.reply(HELP_TEXT);
     return;
   }
-
-  if (cmd?.type === "music" && cmd.query) {
+  if (cmd.type === "music" && cmd.query) {
     await chat.sendStateTyping();
     await musicFlow(msg, chat, cmd.query);
     return;
   }
-
-  if (cmd?.type === "unknown") {
+  if (cmd.type === "unknown") {
     await msg.reply(cmd.message);
     return;
   }
-});
-
-process.on("SIGINT", () => {
-  cleanCache();
-  process.exit();
-});
-
-process.on("uncaughtException", (err) => {
-  console.error("Erro não tratado:", err.message);
 });
 
 console.log("Iniciando bot...");
