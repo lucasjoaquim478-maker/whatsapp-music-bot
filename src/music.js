@@ -68,25 +68,40 @@ export async function downloadAudio(videoUrl) {
 
   return new Promise((resolve, reject) => {
     let stderr = "";
+    let fileResolved = false;
+
     const proc = spawn(ytDlpPath, [
       videoUrl,
       "-f", "bestaudio[protocol!=m3u8]/bestaudio/best",
       "--output", output,
+      "--print", "after_move:filepath",
+      "--no-part",
+      "--no-mtime",
       "--prefer-free-formats",
       "--no-check-certificates",
       "--no-warnings",
     ], { timeout: 120000 });
 
+    proc.stdout.on("data", (d) => {
+      const line = d.toString().trim();
+      if (line && !fileResolved && (line.endsWith(".m4a") || line.endsWith(".webm") || line.endsWith(".mp3") || line.endsWith(".opus") || line.endsWith(".mp4"))) {
+        fileResolved = true;
+        if (fs.existsSync(line) && fs.statSync(line).size > 1000) {
+          resolve(line);
+        }
+      }
+    });
     proc.stderr.on("data", (d) => { stderr += d.toString(); });
-    proc.on("close", (code) => {
+    proc.on("close", () => {
+      if (fileResolved) return;
       const files = fs.readdirSync(config.cacheDir).filter(f => f.startsWith("audio_"));
       for (const f of files) {
         const fp = path.join(config.cacheDir, f);
         if (fs.statSync(fp).size > 1000) return resolve(fp);
       }
-      reject(new Error((stderr || `Código ${code}`).slice(0, 300)));
+      reject(new Error((stderr || "Falha ao baixar").slice(0, 300)));
     });
-    proc.on("error", (e) => reject(new Error(e.message)));
+    proc.on("error", (e) => reject(new Error(String(e))));
   });
 }
 
