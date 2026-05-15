@@ -5,10 +5,23 @@
   Verifica atualizações no GitHub, baixa se houver, e inicia o bot.
 #>
 
-$ScriptDir = if ($PSScriptRoot) {
-  $PSScriptRoot
-} else {
-  Split-Path -Parent -LiteralPath ([Environment]::GetCommandLineArgs()[0])
+$ScriptDir = try {
+  $p = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
+  if ($p) { [System.IO.Path]::GetDirectoryName($p) } else { $null }
+} catch { $null }
+
+if (-not $ScriptDir) {
+  $ScriptDir = try {
+    Split-Path -Parent -LiteralPath ([Environment]::GetCommandLineArgs()[0])
+  } catch { $null }
+}
+
+if (-not $ScriptDir) {
+  $ScriptDir = try { $PSScriptRoot } catch { $null }
+}
+
+if (-not $ScriptDir) {
+  $ScriptDir = (Get-Location).Path
 }
 
 $RepoOwner = "lucasjoaquim478-maker"
