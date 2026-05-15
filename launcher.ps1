@@ -148,47 +148,54 @@ function Install-Dependencies {
     npm install 2>&1 | ForEach-Object { Write-Color "   $_" DarkGray }
     if ($LASTEXITCODE -ne 0) {
       Write-Color "❌ Falha ao instalar dependências. Execute manualmente: npm install" Red
-      exit 1
+      Write-Color "   Continuando mesmo assim..." Yellow
+    } else {
+      Write-Color "   ✅ Dependências instaladas!" Green
     }
-    Write-Color "   ✅ Dependências instaladas!" Green
   }
 }
 
 # ===== MAIN =====
-Clear-Host
-Write-Color "╔══════════════════════════════════════╗" Cyan
-Write-Color "║     WhatsApp Music Bot - Launcher    ║" Cyan
-Write-Color "╚══════════════════════════════════════╝" Cyan
-
-$localVersion = Get-LocalVersion
-Write-Color "`n📌 Versão local: v$localVersion" White
-
-Write-Color "🔍 Verificando atualizações..." Yellow
-$remoteInfo = Get-RemoteVersion
-
-if ($remoteInfo -and (Compare-Versions $localVersion $remoteInfo.version)) {
-  Write-Color "✨ Nova versão disponível: v$($remoteInfo.version)" Green
-  Update-Application $remoteInfo
-  try {
-    @{ version = $remoteInfo.version } | ConvertTo-Json | Set-Content -LiteralPath $VersionFile
-  } catch {
-    Write-Color "⚠️  Não foi possível atualizar version.json" Yellow
-  }
-} else {
-  Write-Color "✅ Você já está na versão mais recente!" Green
-}
-
-Install-Dependencies
-
-Write-Color "`n🚀 Iniciando bot..." Cyan
-Write-Color "   Pressione Ctrl+C para parar`n" DarkGray
-
 try {
-  Set-Location -LiteralPath $ScriptDir
-  node index.js
-} catch {
-  Write-Color "❌ Erro ao iniciar: $_" Red
-}
+  Clear-Host
+  Write-Color "╔══════════════════════════════════════╗" Cyan
+  Write-Color "║     WhatsApp Music Bot - Launcher    ║" Cyan
+  Write-Color "╚══════════════════════════════════════╝" Cyan
 
-Write-Color "`n❌ Bot encerrado. Pressione qualquer tecla para fechar..." DarkGray
-pause > $null
+  $localVersion = Get-LocalVersion
+  Write-Color "`n📌 Versão local: v$localVersion" White
+
+  Write-Color "🔍 Verificando atualizações..." Yellow
+  $remoteInfo = Get-RemoteVersion
+
+  if ($remoteInfo -and (Compare-Versions $localVersion $remoteInfo.version)) {
+    Write-Color "✨ Nova versão disponível: v$($remoteInfo.version)" Green
+    Update-Application $remoteInfo
+    try {
+      @{ version = $remoteInfo.version } | ConvertTo-Json | Set-Content -LiteralPath $VersionFile
+    } catch {
+      Write-Color "⚠️  Não foi possível atualizar version.json" Yellow
+    }
+  } else {
+    Write-Color "✅ Você já está na versão mais recente!" Green
+  }
+
+  Install-Dependencies
+
+  Write-Color "`n🚀 Iniciando bot..." Cyan
+  Write-Color "   Pressione Ctrl+C para parar`n" DarkGray
+
+  try {
+    Set-Location -LiteralPath $ScriptDir
+    node index.js
+  } catch {
+    Write-Color "❌ Erro ao iniciar: $_" Red
+  }
+
+  Write-Color "`n❌ Bot encerrado." DarkGray
+} catch {
+  Write-Color "`n❌ Erro inesperado: $_" Red
+} finally {
+  Write-Color "   Pressione qualquer tecla para fechar..." DarkGray
+  cmd /c pause > $null
+}
