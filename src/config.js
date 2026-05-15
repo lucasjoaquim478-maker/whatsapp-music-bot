@@ -23,6 +23,7 @@ if (fs.existsSync(envPath)) {
 export const config = {
   geminiApiKey: process.env.GEMINI_API_KEY || "",
   prefix: process.env.PREFIX || "!",
+  owner: process.env.OWNER || "",
   maxDuration: 600,
   cacheDir: "./temp",
 };

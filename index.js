@@ -82,6 +82,7 @@ const musicFlow = async (msg, chat, query) => {
 client.on("message", async (msg) => {
   if (msg.from.endsWith("@g.us")) return;
   if (msg.fromMe) return;
+  if (config.owner && msg.from !== config.owner) return;
 
   const chat = await msg.getChat();
   const text = msg.body?.trim();
