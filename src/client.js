@@ -1,64 +1,50 @@
-import pkg from "whatsapp-web.js";
+import { makeWASocket, useMultiFileAuthState, Browsers, DisconnectReason } from "@whiskeysockets/baileys";
 import qrcode from "qrcode-terminal";
-import fs from "fs";
+import path from "path";
 
-const { Client, LocalAuth } = pkg;
+const authDir = path.join(process.cwd(), "auth");
 
-function findChrome() {
-  const paths = [
-    "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-    "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
-    "C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe",
-    "C:\\Program Files (x86)\\BraveSoftware\\Brave-Browser\\Application\\brave.exe",
-    "C:\\Users\\" + process.env.USERNAME + "\\AppData\\Local\\Google\\Chrome\\Application\\chrome.exe",
-    "C:\\Users\\" + process.env.USERNAME + "\\AppData\\Local\\BraveSoftware\\Brave-Browser\\Application\\brave.exe",
-  ];
-  for (const p of paths) {
-    if (fs.existsSync(p)) return p;
-  }
-  return null;
-}
+export async function createClient(onMessage) {
+  const { state, saveCreds } = await useMultiFileAuthState(authDir);
 
-export function createClient() {
-  const puppeteerOpts = {
-    headless: true,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-    ],
-  };
-
-  const chromePath = findChrome();
-  if (chromePath) {
-    puppeteerOpts.executablePath = chromePath;
-  }
-
-  const client = new Client({
-    authStrategy: new LocalAuth(),
-    puppeteer: puppeteerOpts,
+  const sock = makeWASocket({
+    auth: state,
+    browser: Browsers.windows("WhatsApp Music Bot"),
+    printQRInTerminal: false,
+    syncFullHistory: false,
+    markOnlineOnConnect: true,
   });
 
-  client.on("qr", (qr) => {
-    console.log("\nEscaneie o QR Code abaixo com o WhatsApp:");
-    qrcode.generate(qr, { small: true });
+  sock.ev.on("creds.update", saveCreds);
+
+  sock.ev.on("connection.update", ({ qr, connection, lastDisconnect }) => {
+    if (qr) {
+      console.log("\nEscaneie o QR Code abaixo:\n");
+      qrcode.generate(qr, { small: true });
+    }
+    if (connection === "open") {
+      console.log("WhatsApp conectado com sucesso!");
+    }
+    if (connection === "close") {
+      const reason = lastDisconnect?.error?.output?.statusCode;
+      if (reason === DisconnectReason.loggedOut) {
+        console.log("Desconectado permanentemente. Delete a pasta 'auth' e reconecte.");
+      } else {
+        console.log("Reconectando em 5s...");
+        setTimeout(() => createClient(onMessage), 5000);
+      }
+    }
   });
 
-  client.on("authenticated", () => {
-    console.log("Autenticado com sucesso!");
+  sock.ev.on("messages.upsert", async ({ messages }) => {
+    for (const msg of messages) {
+      if (msg.key?.fromMe) continue;
+      if (msg.key?.remoteJid?.endsWith("@g.us")) continue;
+      const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || "";
+      if (!text.trim()) continue;
+      await onMessage(sock, msg, text.trim());
+    }
   });
 
-  client.on("auth_failure", (msg) => {
-    console.error("Falha na autenticação:", msg);
-  });
-
-  client.on("ready", () => {
-    console.log("WhatsApp conectado e pronto!");
-  });
-
-  client.on("disconnected", (reason) => {
-    console.log("Desconectado:", reason);
-  });
-
-  return client;
+  return sock;
 }

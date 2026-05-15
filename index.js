@@ -1,119 +1,77 @@
-import { config } from "./src/config.js";
 import { createClient } from "./src/client.js";
 import { searchMusic, downloadAudio, cleanCache } from "./src/music.js";
 import fs from "fs";
 import path from "path";
 
-const lockFile = path.join(process.cwd(), ".bot.lock");
-if (fs.existsSync(lockFile)) {
-  console.log("Bot já está rodando. Fechando esta instância.");
-  process.exit(0);
-}
-fs.writeFileSync(lockFile, String(process.pid));
+const PREFIX = "!";
+const HELP = `🎵 *Comandos*
+${PREFIX}play <música>  —  Baixa e envia em MP3
+${PREFIX}help           —  Mostra comandos`;
 
-function cleanup() {
-  try { fs.unlinkSync(lockFile); } catch {}
-  cleanCache();
-}
-process.on("exit", cleanup);
-process.on("SIGINT", () => { cleanup(); process.exit(); });
-process.on("uncaughtException", (err) => {
-  const log = `[${new Date().toISOString()}] ${err.stack || err.message}\n`;
-  fs.appendFileSync("erro.log", log);
-  console.error("Erro não tratado. Detalhes salvos em erro.log");
-  cleanup();
-});
-
-const PREFIX = config.prefix || "!";
-
-const HELP_TEXT = `🎵 *Comandos do Bot*
-
-${PREFIX}play <música>   —  Busca e envia a música
-${PREFIX}tocar <música>  —  Busca e envia a música
-${PREFIX}help            —  Mostra esta mensagem
-${PREFIX}comandos        —  Mostra esta mensagem
-
-Envie qualquer mensagem começando com "${PREFIX}" seguido do comando.`;
-
-const client = createClient();
-
-function parseCommand(text) {
-  const lower = text.toLowerCase().trim();
-  for (const cmd of [`${PREFIX}play `, `${PREFIX}tocar `, `${PREFIX}baixar `, `${PREFIX}musica `, `${PREFIX}search `]) {
-    if (lower.startsWith(cmd)) {
-      return { type: "music", query: text.slice(cmd.length).trim() };
-    }
+function parse(text) {
+  const t = text.toLowerCase().trim();
+  for (const c of [`${PREFIX}play `, `${PREFIX}tocar `, `${PREFIX}baixar `, `${PREFIX}musica `]) {
+    if (t.startsWith(c)) return { type: "music", q: text.slice(c.length).trim() };
   }
-  const cmdOnly = [`${PREFIX}help`, `${PREFIX}comandos`, `${PREFIX}ajuda`];
-  if (cmdOnly.some(c => lower === c || lower.startsWith(c + " "))) {
-    return { type: "help" };
-  }
-  if (lower.startsWith(PREFIX)) {
-    return { type: "unknown", message: `Comando não reconhecido. Use ${PREFIX}help para ver os comandos.` };
-  }
+  if ([`${PREFIX}help`, `${PREFIX}comandos`, `${PREFIX}ajuda`].some(c => t === c)) return { type: "help" };
+  if (t.startsWith(PREFIX)) return { type: "unknown" };
   return null;
 }
 
-const musicFlow = async (msg, chat, query) => {
+async function sendText(sock, jid, text, quoted) {
+  await sock.sendMessage(jid, { text }, { quoted });
+}
+
+async function reply(sock, msg, text) {
+  await sendText(sock, msg.key.remoteJid, text, msg);
+}
+
+async function musicFlow(sock, msg, query) {
   try {
-    await msg.reply(`🔍 Buscando: "${query}"...`);
+    await reply(sock, msg, `🔍 Buscando: "${query}"...`);
     const videos = await searchMusic(query);
-    if (!videos.length) {
-      await msg.reply("❌ Nenhum resultado encontrado.");
-      return;
-    }
-    await msg.reply(`🎵 ${videos[0].title}\n⏱ ${Math.floor(videos[0].duration / 60)}:${String(videos[0].duration % 60).padStart(2, "0")}\n📥 Baixando áudio...`);
+    if (!videos.length) return await reply(sock, msg, "❌ Nenhum resultado encontrado.");
+
+    await reply(sock, msg, `🎵 ${videos[0].title}\n📥 Baixando...`);
 
     let lastErr = null;
-    for (const video of videos) {
+    for (const v of videos) {
       try {
-        const filePath = await downloadAudio(video.url);
-        if (!fs.existsSync(filePath) || fs.statSync(filePath).size <= 1000) continue;
-        await chat.sendStateTyping();
-        await client.sendMessage(msg.from, fs.readFileSync(filePath), {
-          sendMediaAsDocument: true,
-          fileName: path.basename(filePath),
-          caption: `🎵 ${video.title}`,
-        });
-        try { fs.unlinkSync(filePath); } catch {}
+        const fp = await downloadAudio(v.url);
+        if (!fs.existsSync(fp) || fs.statSync(fp).size <= 1000) continue;
+        const buf = fs.readFileSync(fp);
+        await sock.sendMessage(msg.key.remoteJid, {
+          audio: buf,
+          mimetype: "audio/mpeg",
+          fileName: path.basename(fp),
+        }, { quoted: msg });
+        try { fs.unlinkSync(fp); } catch {}
         return;
       } catch (e) {
         lastErr = e;
       }
     }
-    throw lastErr || new Error("Nenhum vídeo disponível.");
+    throw lastErr || new Error("Nenhum disponível.");
   } catch (err) {
-    const m = err.message || "Erro desconhecido";
-    try { fs.appendFileSync("erro.log", `[${new Date().toISOString()}] ${err.stack || err.message}\n`); } catch {}
-    await msg.reply(`❌ ${m}`);
+    await reply(sock, msg, `❌ ${err.message || "Erro"}`);
+    try { fs.appendFileSync("erro.log", `[${new Date().toISOString()}] ${err.stack}\n`); } catch {}
   }
-};
+}
 
-client.on("message", async (msg) => {
-  if (msg.from.endsWith("@g.us")) return;
-  if (msg.fromMe) return;
-
-  const chat = await msg.getChat();
-  const text = msg.body?.trim();
-  if (!text || !text.startsWith(PREFIX)) return;
-
-  const cmd = parseCommand(text);
+const handler = async (sock, msg, text) => {
+  const cmd = parse(text);
   if (!cmd) return;
 
-  if (cmd.type === "help") {
-    await msg.reply(HELP_TEXT);
-    return;
-  }
-  if (cmd.type === "music" && cmd.query) {
-    await chat.sendStateTyping();
-    await musicFlow(msg, chat, cmd.query);
-    return;
-  }
-  if (cmd.type === "unknown") {
-    await msg.reply(cmd.message);
-    return;
-  }
+  if (cmd.type === "help") return await reply(sock, msg, HELP);
+  if (cmd.type === "unknown") return await reply(sock, msg, `Use ${PREFIX}help para comandos.`);
+  if (cmd.type === "music" && cmd.q) return await musicFlow(sock, msg, cmd.q);
+};
+
+process.on("uncaughtException", (err) => {
+  try { fs.appendFileSync("erro.log", `[${new Date().toISOString()}] UNCAUGHT: ${err.stack}\n`); } catch {}
 });
 
+process.on("SIGINT", () => { cleanCache(); process.exit(); });
+
 console.log("Iniciando bot...");
-client.initialize();
+createClient(handler);
