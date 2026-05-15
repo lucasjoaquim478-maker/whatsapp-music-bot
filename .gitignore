@@ -8,3 +8,5 @@ auth-data/
 .wwebjs_cache/
 dist/
 temp/
+launcher.exe
+*.exe
