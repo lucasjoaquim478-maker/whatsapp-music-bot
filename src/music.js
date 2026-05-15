@@ -1,22 +1,22 @@
-import ytdl from "@distube/ytdl-core";
+import { execFile } from "child_process";
 import ytSearch from "yt-search";
 import fs from "fs";
 import path from "path";
 import { config } from "./config.js";
 
-const agent = ytdl.createAgent([
-  {
-    url: "",
-    cookies: [],
-  },
-]);
+const ytDlpPath = path.join(config.cacheDir, "yt-dlp.exe");
 
-const requestOptions = {
-  headers: {
-    "User-Agent":
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-  },
-};
+async function ensureYtDlp() {
+  if (fs.existsSync(ytDlpPath)) return;
+
+  const url =
+    "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe";
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("Falha ao baixar yt-dlp.exe");
+  const buf = Buffer.from(await res.arrayBuffer());
+  fs.writeFileSync(ytDlpPath, buf);
+  fs.chmodSync(ytDlpPath, 0o755);
+}
 
 export async function searchMusic(query) {
   const result = await ytSearch(query);
@@ -36,51 +36,41 @@ export async function searchMusic(query) {
   };
 }
 
-function pickFormat(formats) {
-  const f1 = ytdl.chooseFormat(formats, {
-    quality: "lowest",
-    filter: (f) => f.hasAudio && !f.hasVideo && f.container === "m4a",
-  });
-  if (f1) return f1;
-
-  const f2 = ytdl.chooseFormat(formats, {
-    quality: "lowest",
-    filter: "audioonly",
-  });
-  if (f2) return f2;
-
-  const f3 = ytdl.chooseFormat(formats, {
-    quality: "lowest",
-    filter: (f) => f.hasAudio && !f.hasVideo,
-  });
-  if (f3) return f3;
-
-  return ytdl.chooseFormat(formats, { quality: "lowest" });
-}
-
 export async function downloadAudio(videoUrl) {
   if (!fs.existsSync(config.cacheDir)) {
     fs.mkdirSync(config.cacheDir, { recursive: true });
   }
 
-  const info = await ytdl.getInfo(videoUrl, { agent, requestOptions });
-  const format = pickFormat(info.formats);
+  await ensureYtDlp();
 
-  if (!format) throw new Error("Nenhum formato reproduzível encontrado.");
-
-  const ext = format.container || "webm";
-  const safeName = `audio_${Date.now()}`;
-  const filePath = path.join(config.cacheDir, `${safeName}.${ext}`);
+  const output = path.join(config.cacheDir, `audio_%(id)s.%(ext)s`);
 
   return new Promise((resolve, reject) => {
-    const stream = ytdl.downloadFromInfo(info, { format, agent, requestOptions })
-      .pipe(fs.createWriteStream(filePath));
+    const proc = execFile(
+      ytDlpPath,
+      [
+        videoUrl,
+        "--extract-audio",
+        "--audio-format", "mp3",
+        "--output", output,
+        "--no-check-certificates",
+        "--no-warnings",
+        "--prefer-free-formats",
+        "--add-header", "User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "--add-header", "Referer:https://www.youtube.com/",
+      ],
+      { timeout: 120000 },
+      (err, stdout, stderr) => {
+        if (err) return reject(new Error(err.message));
 
-    stream.on("finish", () => resolve(filePath));
-    stream.on("error", (err) => {
-      try { fs.unlinkSync(filePath); } catch {}
-      reject(err);
-    });
+        const files = fs.readdirSync(config.cacheDir);
+        const audioFile = files.find((f) => f.startsWith("audio_"));
+        if (!audioFile) return reject(new Error("Áudio não foi gerado."));
+
+        const filePath = path.join(config.cacheDir, audioFile);
+        resolve(filePath);
+      }
+    );
   });
 }
 
@@ -88,7 +78,7 @@ export function cleanCache() {
   try {
     const files = fs.readdirSync(config.cacheDir);
     for (const f of files) {
-      fs.unlinkSync(path.join(config.cacheDir, f));
+      if (f !== "yt-dlp.exe") fs.unlinkSync(path.join(config.cacheDir, f));
     }
   } catch {}
 }
