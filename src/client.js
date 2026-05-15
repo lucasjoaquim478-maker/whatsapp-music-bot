@@ -21,7 +21,7 @@ export function createClient(onMessage) {
   client.on("ready", () => console.log("WhatsApp conectado!"));
   client.on("disconnected", (r) => console.log("Desconectado:", r));
 
-  client.on("message_create", async (msg) => {
+  client.on("message", async (msg) => {
     if (msg.fromMe) return;
     const text = msg.body?.trim();
     if (!text) return;
