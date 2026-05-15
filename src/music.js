@@ -1,14 +1,20 @@
 import { spawn } from "child_process";
 import fs from "fs";
 import path from "path";
+import { createRequire } from "module";
 import { config } from "./config.js";
+
+const require = createRequire(import.meta.url);
+let ffmpegPath = null;
+try {
+  ffmpegPath = require("ffmpeg-static");
+} catch {}
 
 const ytDlpPath = path.join(config.cacheDir, "yt-dlp.exe");
 
 async function ensureYtDlp() {
   if (fs.existsSync(ytDlpPath)) return;
   if (!fs.existsSync(config.cacheDir)) fs.mkdirSync(config.cacheDir, { recursive: true });
-
   const res = await fetch("https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe");
   if (!res.ok) throw new Error("Falha ao baixar yt-dlp.exe");
   fs.writeFileSync(ytDlpPath, Buffer.from(await res.arrayBuffer()));
@@ -16,8 +22,7 @@ async function ensureYtDlp() {
 
 function runYtDlp(args, timeout = 30000) {
   return new Promise((resolve, reject) => {
-    let out = "";
-    let err = "";
+    let out = "", err = "";
     const proc = spawn(ytDlpPath, args, { timeout });
     proc.stdout.on("data", (d) => { out += d.toString(); });
     proc.stderr.on("data", (d) => { err += d.toString(); });
@@ -31,27 +36,19 @@ function runYtDlp(args, timeout = 30000) {
 
 export async function searchMusic(query) {
   await ensureYtDlp();
-
   try {
     const json = await runYtDlp([
-      "ytsearch1:" + query,
-      "--dump-json",
-      "--no-check-certificates",
-      "--no-warnings",
+      "ytsearch1:" + query, "--dump-json", "--no-check-certificates", "--no-warnings",
     ], 20000);
-
     const data = JSON.parse(json.split("\n")[0]);
-    if (!data || !data.id) throw Error("JSON vazio");
-
-    const duration = data.duration || 0;
-    if (duration > config.maxDuration) {
+    if (!data || !data.id) throw Error("vazio");
+    if ((data.duration || 0) > config.maxDuration) {
       throw new Error(`Música muito longa (máx ${Math.floor(config.maxDuration / 60)}min).`);
     }
-
     return {
       title: data.title || "Desconhecido",
       url: `https://youtube.com/watch?v=${data.id}`,
-      duration,
+      duration: data.duration || 0,
       thumbnail: data.thumbnail || "",
     };
   } catch (e) {
@@ -64,42 +61,36 @@ export async function downloadAudio(videoUrl) {
   if (!fs.existsSync(config.cacheDir)) fs.mkdirSync(config.cacheDir, { recursive: true });
   await ensureYtDlp();
 
-  const output = path.join(config.cacheDir, `audio_%(id)s.%(ext)s`);
+  const output = path.join(config.cacheDir, `audio_%(id)s.mp3`);
+  const args = [
+    videoUrl,
+    "-f", "bestaudio[protocol!=m3u8]/bestaudio/best",
+    "--output", output,
+    "--no-part",
+    "--no-mtime",
+    "--prefer-free-formats",
+    "--no-check-certificates",
+    "--no-warnings",
+  ];
+
+  if (ffmpegPath && fs.existsSync(ffmpegPath)) {
+    args.push("--extract-audio", "--audio-format", "mp3", "--ffmpeg-location", path.dirname(ffmpegPath));
+  }
 
   return new Promise((resolve, reject) => {
     let stderr = "";
-    let fileResolved = false;
-
-    const proc = spawn(ytDlpPath, [
-      videoUrl,
-      "-f", "bestaudio[protocol!=m3u8]/bestaudio/best",
-      "--output", output,
-      "--print", "after_move:filepath",
-      "--no-part",
-      "--no-mtime",
-      "--prefer-free-formats",
-      "--no-check-certificates",
-      "--no-warnings",
-    ], { timeout: 120000 });
-
-    proc.stdout.on("data", (d) => {
-      const line = d.toString().trim();
-      if (line && !fileResolved && (line.endsWith(".m4a") || line.endsWith(".webm") || line.endsWith(".mp3") || line.endsWith(".opus") || line.endsWith(".mp4"))) {
-        fileResolved = true;
-        if (fs.existsSync(line) && fs.statSync(line).size > 1000) {
-          resolve(line);
-        }
-      }
-    });
+    const proc = spawn(ytDlpPath, args, { timeout: 120000 });
+    proc.stdout.on("data", () => {});
     proc.stderr.on("data", (d) => { stderr += d.toString(); });
-    proc.on("close", () => {
-      if (fileResolved) return;
-      const files = fs.readdirSync(config.cacheDir).filter(f => f.startsWith("audio_"));
+    proc.on("close", (code) => {
+      const files = fs.readdirSync(config.cacheDir)
+        .filter(f => f.startsWith("audio_") && f.endsWith(".mp3"))
+        .sort();
       for (const f of files) {
         const fp = path.join(config.cacheDir, f);
         if (fs.statSync(fp).size > 1000) return resolve(fp);
       }
-      reject(new Error((stderr || "Falha ao baixar").slice(0, 300)));
+      reject(new Error((stderr || `Código ${code}`).slice(0, 300)));
     });
     proc.on("error", (e) => reject(new Error(String(e))));
   });
