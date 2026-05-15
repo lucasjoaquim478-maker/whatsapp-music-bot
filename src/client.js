@@ -1,6 +1,8 @@
-import { Client, LocalAuth } from "whatsapp-web.js";
+import pkg from "whatsapp-web.js";
 import qrcode from "qrcode-terminal";
 import fs from "fs";
+
+const { Client, LocalAuth } = pkg;
 
 function findChrome() {
   const paths = [
