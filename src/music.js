@@ -1,8 +1,19 @@
-import ytdl from "@distube/ytdl-core";
+import { spawn } from "child_process";
 import ytSearch from "yt-search";
 import fs from "fs";
 import path from "path";
 import { config } from "./config.js";
+
+const ytDlpPath = path.join(config.cacheDir, "yt-dlp.exe");
+
+async function ensureYtDlp() {
+  if (fs.existsSync(ytDlpPath)) return;
+  if (!fs.existsSync(config.cacheDir)) fs.mkdirSync(config.cacheDir, { recursive: true });
+
+  const res = await fetch("https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe");
+  if (!res.ok) throw new Error("Falha ao baixar yt-dlp.exe");
+  fs.writeFileSync(ytDlpPath, Buffer.from(await res.arrayBuffer()));
+}
 
 export async function searchMusic(query) {
   const result = await ytSearch(query);
@@ -15,37 +26,39 @@ export async function searchMusic(query) {
 }
 
 export async function downloadAudio(videoUrl) {
-  if (!fs.existsSync(config.cacheDir)) {
-    fs.mkdirSync(config.cacheDir, { recursive: true });
-  }
+  if (!fs.existsSync(config.cacheDir)) fs.mkdirSync(config.cacheDir, { recursive: true });
+  await ensureYtDlp();
 
-  const filePath = path.join(config.cacheDir, `audio_${Date.now()}.mp3`);
+  const output = path.join(config.cacheDir, `audio_%(id)s.%(ext)s`);
 
   return new Promise((resolve, reject) => {
-    const stream = ytdl(videoUrl, {
-      filter: "audioonly",
-      quality: "lowestaudio",
-    }).pipe(fs.createWriteStream(filePath));
+    let stderr = "";
+    const proc = spawn(ytDlpPath, [
+      videoUrl,
+      "-f", "bestaudio",
+      "--output", output,
+      "--no-check-certificates",
+      "--no-warnings",
+      "--print", "filename",
+    ]);
 
-    stream.on("finish", () => {
-      if (fs.existsSync(filePath) && fs.statSync(filePath).size > 0) {
-        resolve(filePath);
-      } else {
-        try { fs.unlinkSync(filePath); } catch {}
-        reject(new Error("Arquivo vazio"));
-      }
+    proc.stdout.on("data", () => {});
+    proc.stderr.on("data", (d) => { stderr += d.toString(); });
+    proc.on("close", (code) => {
+      const files = fs.readdirSync(config.cacheDir);
+      const audioFile = files.find((f) => f.startsWith("audio_"));
+      if (audioFile) return resolve(path.join(config.cacheDir, audioFile));
+      reject(new Error(stderr || "Falha ao baixar áudio"));
     });
-    stream.on("error", (e) => {
-      try { fs.unlinkSync(filePath); } catch {}
-      reject(new Error(String(e?.message || e || "Erro desconhecido")));
-    });
+    proc.on("error", (e) => reject(new Error(e.message)));
   });
 }
 
 export function cleanCache() {
   try {
     for (const f of fs.readdirSync(config.cacheDir)) {
-      fs.unlinkSync(path.join(config.cacheDir, f));
+      const full = path.join(config.cacheDir, f);
+      if (f !== "yt-dlp.exe" && fs.statSync(full).isFile()) fs.unlinkSync(full);
     }
   } catch {}
 }

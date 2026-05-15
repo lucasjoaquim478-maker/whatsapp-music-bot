@@ -2,6 +2,20 @@ import { config } from "./src/config.js";
 import { createClient } from "./src/client.js";
 import { searchMusic, downloadAudio, cleanCache } from "./src/music.js";
 import fs from "fs";
+import path from "path";
+
+const lockFile = path.join(process.cwd(), ".bot.lock");
+if (fs.existsSync(lockFile)) {
+  console.log("Bot já está rodando. Fechando esta instância.");
+  process.exit(0);
+}
+fs.writeFileSync(lockFile, String(process.pid));
+process.on("exit", () => { try { fs.unlinkSync(lockFile); } catch {} });
+process.on("SIGINT", () => { try { fs.unlinkSync(lockFile); } catch {}; cleanCache(); process.exit(); });
+process.on("uncaughtException", (err) => {
+  console.error("Erro não tratado:", err.message);
+  try { fs.unlinkSync(lockFile); } catch {}
+});
 
 const PREFIX = config.prefix || "!";
 
