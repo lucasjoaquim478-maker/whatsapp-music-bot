@@ -22,7 +22,6 @@ export function createClient(onMessage) {
   client.on("disconnected", (r) => console.log("Desconectado:", r));
 
   client.on("message", async (msg) => {
-    if (msg.from.endsWith("@g.us")) return;
     if (msg.fromMe) return;
     const text = msg.body?.trim();
     if (!text) return;
