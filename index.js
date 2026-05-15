@@ -56,10 +56,10 @@ const musicFlow = async (msg, chat, query) => {
       await msg.reply("❌ Erro ao processar o áudio. Tente outra música.");
     }
   } catch (err) {
-    const message = err.message.includes("muito longa")
+    const msg2 = err.message.includes("muito longa")
       ? `❌ ${err.message}`
-      : "❌ Não encontrei essa música. Tente com outro nome.";
-    await msg.reply(message);
+      : `❌ Erro ao baixar: ${err.message}`;
+    await msg.reply(msg2);
   }
 };
 

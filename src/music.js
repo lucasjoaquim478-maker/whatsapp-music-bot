@@ -4,6 +4,20 @@ import fs from "fs";
 import path from "path";
 import { config } from "./config.js";
 
+const agent = ytdl.createAgent([
+  {
+    url: "",
+    cookies: [],
+  },
+]);
+
+const requestOptions = {
+  headers: {
+    "User-Agent":
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+  },
+};
+
 export async function searchMusic(query) {
   const result = await ytSearch(query);
   const video = result.videos?.[0];
@@ -27,11 +41,16 @@ export async function downloadAudio(videoUrl) {
     fs.mkdirSync(config.cacheDir, { recursive: true });
   }
 
-  const info = await ytdl.getInfo(videoUrl);
-  const format = ytdl.chooseFormat(info.formats, {
-    quality: "lowest",
-    filter: (f) => f.hasAudio && !f.hasVideo,
-  });
+  const info = await ytdl.getInfo(videoUrl, { agent, requestOptions });
+  const format =
+    ytdl.chooseFormat(info.formats, {
+      quality: "lowest",
+      filter: (f) => f.hasAudio && !f.hasVideo,
+    }) ||
+    ytdl.chooseFormat(info.formats, {
+      quality: "lowest",
+      filter: "audioonly",
+    });
 
   if (!format) throw new Error("Nenhum formato de áudio encontrado.");
 
@@ -40,17 +59,22 @@ export async function downloadAudio(videoUrl) {
   const filePath = path.join(config.cacheDir, `${safeName}.${ext}`);
 
   return new Promise((resolve, reject) => {
-    const stream = ytdl.downloadFromInfo(info, { format })
+    const stream = ytdl.downloadFromInfo(info, { format, agent, requestOptions })
       .pipe(fs.createWriteStream(filePath));
 
     stream.on("finish", () => resolve(filePath));
-    stream.on("error", reject);
+    stream.on("error", (err) => {
+      try { fs.unlinkSync(filePath); } catch {}
+      reject(err);
+    });
   });
 }
 
 export function cleanCache() {
-  const files = fs.readdirSync(config.cacheDir);
-  for (const f of files) {
-    fs.unlinkSync(path.join(config.cacheDir, f));
-  }
+  try {
+    const files = fs.readdirSync(config.cacheDir);
+    for (const f of files) {
+      fs.unlinkSync(path.join(config.cacheDir, f));
+    }
+  } catch {}
 }
