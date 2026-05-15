@@ -97,9 +97,16 @@ function Update-Application($remote) {
       $dest = Join-Path $ScriptDir $_.Name
       if ($_.PSIsContainer) {
         if (Test-Path -LiteralPath $dest) { Remove-Item -Recurse -Force -LiteralPath $dest }
-        Copy-Item -Recurse -LiteralPath $_.FullName -Destination $dest
+        [System.IO.Directory]::CreateDirectory($dest) | Out-Null
+        foreach ($file in [System.IO.Directory]::GetFiles($_.FullName, "*", [System.IO.SearchOption]::AllDirectories)) {
+          $rel = $file.Substring($_.FullName.Length + 1)
+          $destFile = Join-Path $dest $rel
+          $destDir = [System.IO.Path]::GetDirectoryName($destFile)
+          if (-not (Test-Path -LiteralPath $destDir)) { [System.IO.Directory]::CreateDirectory($destDir) | Out-Null }
+          [System.IO.File]::Copy($file, $destFile, $true) | Out-Null
+        }
       } else {
-        Copy-Item -LiteralPath $_.FullName -Destination $dest -Force
+        [System.IO.File]::Copy($_.FullName, $dest, $true) | Out-Null
       }
     }
 
@@ -109,7 +116,7 @@ function Update-Application($remote) {
     $currentExe = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
     if (Test-Path -LiteralPath $newExe -and $currentExe -ne (Join-Path $extracted.FullName "launcher.exe")) {
       $newExePath = Join-Path $ScriptDir "launcher.exe.new"
-      Copy-Item -LiteralPath $newExe -Destination $newExePath -Force
+      [System.IO.File]::Copy($newExe, $newExePath, $true) | Out-Null
       Write-Color "🔄 Atualização do launcher pendente. O aplicativo será reiniciado..." Yellow
 
       $batchContent = @"
