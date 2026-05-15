@@ -34,7 +34,7 @@ async function sendAudio(client, to, filePath, title) {
 }
 
 const handler = async (client, msg, text) => {
-  if (text.trim().startsWith(IGNORE)) return;
+  if (text.includes(IGNORE)) return;
   if (IGNORED.includes(msg.from)) return;
   const cmd = parse(text);
   if (!cmd) return;
