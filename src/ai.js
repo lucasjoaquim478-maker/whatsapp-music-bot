@@ -9,8 +9,8 @@ IMPORTANTE: Responda APENAS com um JSON válido, sem formatação extra.
 Se o usuário pedir uma música, artista ou álbum, responda:
 {"type":"music","query":"<termo de busca>"}
 
-Se for um comando de ajuda ou saudação, responda:
-{"type":"help","message":"<mensagem de ajuda>"}
+Se for um comando de ajuda ou saudação, ou se o usuário pedir ajuda, responda:
+{"type":"help","message":"Use !help para ver os comandos"}
 
 Se não for relacionado a música, responda:
 {"type":"unknown","message":"<mensagem educada>"}`;
