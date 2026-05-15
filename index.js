@@ -38,32 +38,34 @@ const handler = async (client, msg, text) => {
       const videos = await searchMusic(cmd.q);
       if (!videos.length) return await msg.reply("❌ Nenhum resultado encontrado.");
 
-      const chat = await msg.getChat();
       await msg.reply(`🎵 ${videos[0].title}\n📥 Baixando...`);
 
-      let lastErr = null;
+      let sent = false;
       for (const v of videos) {
         try {
           const fp = await downloadAudio(v.url);
-          if (!fs.existsSync(fp) || fs.statSync(fp).size <= 1000) {
-            lastErr = new Error("Arquivo vazio ou não encontrado");
-            continue;
+          if (!fs.existsSync(fp) || fs.statSync(fp).size <= 1000) continue;
+
+          try {
+            await sendAudio(client, msg.from, fp, v.title);
+            sent = true;
+          } catch {
+            const buf = fs.readFileSync(fp);
+            await client.sendMessage(msg.from, buf, { caption: `🎵 ${v.title}` });
+            sent = true;
           }
-          await chat.sendStateTyping();
-          await sendAudio(client, msg.from, fp, v.title);
+
           try { fs.unlinkSync(fp); } catch {}
-          return;
+          if (sent) return;
         } catch (e) {
-          lastErr = e;
-          const log = `[${new Date().toISOString()}] VIDEO ${v.title}: ${e.stack || e.message || e}\n`;
-          try { fs.appendFileSync("log.txt", log); } catch {}
+          try { fs.appendFileSync("log.txt", `[${new Date().toISOString()}] ${v.title}: ${e.stack || e}\n`); } catch {}
         }
       }
-      throw lastErr || new Error("Não foi possível baixar.");
+
+      await msg.reply(`❌ Não consegui enviar o áudio. Link: ${videos[0].url}`);
     } catch (err) {
-      const log = `[${new Date().toISOString()}] FINAL: ${err.stack || err.message || err}\n`;
-      try { fs.appendFileSync("log.txt", log); } catch {}
-      await msg.reply(`❌ ${err && err.message ? err.message : "Erro desconhecido (ver log.txt)"}`);
+      try { fs.appendFileSync("log.txt", `[${new Date().toISOString()}] ${err.stack || err}\n`); } catch {}
+      await msg.reply(`❌ Erro. Detalhes salvos em log.txt`);
     }
   }
 };
