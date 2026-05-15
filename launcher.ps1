@@ -145,6 +145,7 @@ function Install-Dependencies {
     Write-Color "   Instalando npm packages (pode levar alguns minutos)..." Yellow
     Set-Location -LiteralPath $ScriptDir
     $env:PUPPETEER_SKIP_DOWNLOAD = "true"
+    $env:PUPPETEER_SKIP_DOWNLOAD = "true"
     npm install 2>&1 | ForEach-Object { Write-Color "   $_" DarkGray }
     if ($LASTEXITCODE -ne 0) {
       Write-Color "⚠️  npm install falhou. Tentando de novo ignorando puppeteer..." Yellow
