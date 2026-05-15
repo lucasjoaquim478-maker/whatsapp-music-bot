@@ -70,8 +70,9 @@ export async function downloadAudio(videoUrl) {
     let stderr = "";
     const proc = spawn(ytDlpPath, [
       videoUrl,
-      "-f", "bestaudio/best",
+      "-f", "bestaudio[protocol!=m3u8]/bestaudio/best",
       "--output", output,
+      "--prefer-free-formats",
       "--no-check-certificates",
       "--no-warnings",
     ], { timeout: 120000 });
