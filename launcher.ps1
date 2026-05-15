@@ -108,9 +108,14 @@ function Install-Dependencies {
   Write-Color "📦 Verificando dependências..." Yellow
   $npmPath = Join-Path $ScriptDir "node_modules"
   if (-not (Test-Path -LiteralPath $npmPath)) {
-    Write-Color "   Instalando npm packages..." Yellow
+    Write-Color "   Instalando npm packages (pode levar alguns minutos)..." Yellow
     Set-Location -LiteralPath $ScriptDir
-    npm install --production 2>&1 | Out-Null
+    npm install 2>&1 | ForEach-Object { Write-Color "   $_" DarkGray }
+    if ($LASTEXITCODE -ne 0) {
+      Write-Color "❌ Falha ao instalar dependências. Execute manualmente: npm install" Red
+      exit 1
+    }
+    Write-Color "   ✅ Dependências instaladas!" Green
   }
 }
 
