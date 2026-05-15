@@ -21,7 +21,11 @@ function parse(text) {
 }
 
 async function sendAudio(client, to, filePath, title) {
-  const media = MessageMedia.fromFilePath(filePath);
+  const ext = path.extname(filePath).toLowerCase();
+  const mimeMap = { ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".webm": "audio/webm", ".opus": "audio/ogg", ".wav": "audio/wav" };
+  const mimetype = mimeMap[ext] || "audio/mpeg";
+  const base64 = fs.readFileSync(filePath).toString("base64");
+  const media = new MessageMedia(mimetype, base64, path.basename(filePath));
   await client.sendMessage(to, media, { caption: `🎵 ${title}` });
 }
 
