@@ -1,6 +1,5 @@
 import { config } from "./src/config.js";
 import { createClient } from "./src/client.js";
-import { interpretMessage } from "./src/ai.js";
 import { searchMusic, downloadAudio, cleanCache } from "./src/music.js";
 import fs from "fs";
 
@@ -8,12 +7,10 @@ const PREFIX = config.prefix || "!";
 
 const HELP_TEXT = `🎵 *Comandos do Bot*
 
-${PREFIX}play <música>  —  Busca e envia a música
-${PREFIX}tocar <música> —  Busca e envia a música
-${PREFIX}help           —  Mostra esta mensagem
-${PREFIX}comandos       —  Mostra esta mensagem
-
-Ou apenas *envie o nome* de uma música que eu entendo!`;
+${PREFIX}play <música>   —  Busca e envia a música
+${PREFIX}tocar <música>  —  Busca e envia a música
+${PREFIX}help            —  Mostra esta mensagem
+${PREFIX}comandos        —  Mostra esta mensagem`;
 
 const userStates = new Map();
 
@@ -73,11 +70,7 @@ client.on("message", async (msg) => {
   const chat = await msg.getChat();
   const text = msg.body?.trim();
 
-  if (!text) {
-    await chat.sendStateTyping();
-    await msg.reply(`Envie o nome de uma música ou use ${PREFIX}help para ver os comandos.`);
-    return;
-  }
+  if (!text || !text.startsWith(PREFIX)) return;
 
   const cmd = parseCommand(text);
 
@@ -96,26 +89,6 @@ client.on("message", async (msg) => {
     await msg.reply(cmd.message);
     return;
   }
-
-  await chat.sendStateTyping();
-  const interpreted = await interpretMessage(text);
-
-  if (interpreted.type === "help") {
-    await msg.reply(HELP_TEXT);
-    return;
-  }
-
-  if (interpreted.type === "unknown") {
-    await msg.reply(interpreted.message || `Só sei buscar músicas! Use ${PREFIX}help para ver os comandos.`);
-    return;
-  }
-
-  if (interpreted.type === "music" && interpreted.query) {
-    await musicFlow(msg, chat, interpreted.query);
-    return;
-  }
-
-  await msg.reply(`Envie o nome de uma música ou use ${PREFIX}help para ver os comandos.`);
 });
 
 process.on("SIGINT", () => {

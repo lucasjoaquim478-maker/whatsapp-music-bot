@@ -29,12 +29,15 @@ export async function downloadAudio(videoUrl) {
 
   const info = await ytdl.getInfo(videoUrl);
   const format = ytdl.chooseFormat(info.formats, {
-    quality: "lowestaudio",
-    filter: "audioonly",
+    quality: "lowest",
+    filter: (f) => f.hasAudio && !f.hasVideo,
   });
 
+  if (!format) throw new Error("Nenhum formato de áudio encontrado.");
+
+  const ext = format.container || "m4a";
   const safeName = info.videoDetails.title.replace(/[^a-zA-Z0-9]/g, "_").slice(0, 40);
-  const filePath = path.join(config.cacheDir, `${safeName}.mp3`);
+  const filePath = path.join(config.cacheDir, `${safeName}.${ext}`);
 
   return new Promise((resolve, reject) => {
     const stream = ytdl.downloadFromInfo(info, { format })
