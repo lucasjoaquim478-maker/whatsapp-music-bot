@@ -24,6 +24,14 @@ if (-not $ScriptDir) {
   $ScriptDir = (Get-Location).Path
 }
 
+# Cleanup de arquivos temporários de update
+$oldExe = Join-Path $ScriptDir "launcher.exe.old"
+$newExe = Join-Path $ScriptDir "launcher.exe.new"
+$restartBat = Join-Path $ScriptDir "_restart.bat"
+if (Test-Path -LiteralPath $oldExe) { Remove-Item -Force -LiteralPath $oldExe -ErrorAction SilentlyContinue }
+if (Test-Path -LiteralPath $newExe) { Remove-Item -Force -LiteralPath $newExe -ErrorAction SilentlyContinue }
+if (Test-Path -LiteralPath $restartBat) { Remove-Item -Force -LiteralPath $restartBat -ErrorAction SilentlyContinue }
+
 $RepoOwner = "lucasjoaquim478-maker"
 $RepoName = "whatsapp-music-bot"
 $VersionFile = Join-Path $ScriptDir "version.json"
@@ -96,6 +104,33 @@ function Update-Application($remote) {
     }
 
     Write-Color "✅ Atualização aplicada!" Green
+
+    $newExe = Join-Path $extracted.FullName "launcher.exe"
+    $currentExe = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
+    if (Test-Path -LiteralPath $newExe -and $currentExe -ne (Join-Path $extracted.FullName "launcher.exe")) {
+      $newExePath = Join-Path $ScriptDir "launcher.exe.new"
+      Copy-Item -LiteralPath $newExe -Destination $newExePath -Force
+      Write-Color "🔄 Atualização do launcher pendente. O aplicativo será reiniciado..." Yellow
+
+      $batchContent = @"
+@echo off
+title Atualizando WhatsApp Music Bot...
+:wait
+tasklist /FI "IMAGENAME eq launcher.exe" 2>NUL | find /I "launcher.exe" >NUL
+if "%errorlevel%"=="0" (
+  timeout /t 1 /nobreak >NUL
+  goto wait
+)
+copy /Y "$newExePath" "$currentExe" >NUL
+del "$newExePath"
+start "" "$currentExe"
+exit
+"@
+      $batchFile = Join-Path $ScriptDir "_restart.bat"
+      $batchContent | Set-Content -LiteralPath $batchFile -Encoding ASCII
+      Start-Process -FilePath $batchFile -WindowStyle Hidden
+      exit 0
+    }
   } catch {
     Write-Color "❌ Erro na atualização: $_" Red
   } finally {
