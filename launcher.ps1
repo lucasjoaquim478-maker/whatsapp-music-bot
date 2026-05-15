@@ -5,10 +5,10 @@
   Verifica atualizações no GitHub, baixa se houver, e inicia o bot.
 #>
 
-$ScriptDir = if ($ScriptDir) {
-  $ScriptDir
+$ScriptDir = if ($PSScriptRoot) {
+  $PSScriptRoot
 } else {
-  [System.IO.Path]::GetDirectoryName([System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName)
+  Split-Path -Parent -LiteralPath ([Environment]::GetCommandLineArgs()[0])
 }
 
 $RepoOwner = "lucasjoaquim478-maker"
@@ -21,9 +21,9 @@ function Write-Color($Text, $Color) {
 }
 
 function Get-LocalVersion {
-  if (Test-Path $VersionFile) {
+  if (Test-Path -LiteralPath $VersionFile) {
     try {
-      $json = Get-Content $VersionFile -Raw | ConvertFrom-Json
+      $json = Get-Content -LiteralPath $VersionFile -Raw | ConvertFrom-Json
       return $json.version
     } catch { return "0.0.0" }
   }
@@ -59,26 +59,26 @@ function Compare-Versions($v1, $v2) {
 function Update-Application($remote) {
   Write-Color "`n📥 Baixando atualização v$($remote.version)..." Yellow
   $tempDir = Join-Path $env:TEMP "whatsapp-music-bot-update"
-  $zipFile = Join-Path $env:TEMP "whatsapp-music-bot-update.zip"
+  $zipFile  = Join-Path $env:TEMP "whatsapp-music-bot-update.zip"
 
-  if (Test-Path $tempDir) { Remove-Item -Recurse -Force $tempDir }
-  if (Test-Path $zipFile) { Remove-Item -Force $zipFile }
+  if (Test-Path -LiteralPath $tempDir) { Remove-Item -Recurse -Force -LiteralPath $tempDir }
+  if (Test-Path -LiteralPath $zipFile) { Remove-Item -Force -LiteralPath $zipFile }
 
   try {
     Invoke-WebRequest -Uri $remote.downloadUrl -OutFile $zipFile -ErrorAction Stop
-    Expand-Archive -Path $zipFile -DestinationPath $tempDir -Force
+    Expand-Archive -LiteralPath $zipFile -DestinationPath $tempDir -Force
 
-    $extracted = Get-ChildItem $tempDir -Directory | Select-Object -First 1
+    $extracted = Get-ChildItem -LiteralPath $tempDir -Directory | Select-Object -First 1
     if (-not $extracted) { throw "Pasta extraída não encontrada" }
 
     $exclude = @('node_modules', '.env', 'session', '.wwebjs_auth', '.wwebjs_cache')
-    Get-ChildItem $extracted.FullName | Where-Object { $_.Name -notin $exclude } | ForEach-Object {
+    Get-ChildItem -LiteralPath $extracted.FullName | Where-Object { $_.Name -notin $exclude } | ForEach-Object {
       $dest = Join-Path $ScriptDir $_.Name
       if ($_.PSIsContainer) {
-        if (Test-Path $dest) { Remove-Item -Recurse -Force $dest }
-        Copy-Item -Recurse -Path $_.FullName -Destination $dest
+        if (Test-Path -LiteralPath $dest) { Remove-Item -Recurse -Force -LiteralPath $dest }
+        Copy-Item -Recurse -LiteralPath $_.FullName -Destination $dest
       } else {
-        Copy-Item -Path $_.FullName -Destination $dest -Force
+        Copy-Item -LiteralPath $_.FullName -Destination $dest -Force
       }
     }
 
@@ -86,17 +86,17 @@ function Update-Application($remote) {
   } catch {
     Write-Color "❌ Erro na atualização: $_" Red
   } finally {
-    if (Test-Path $tempDir) { Remove-Item -Recurse -Force $tempDir -ErrorAction SilentlyContinue }
-    if (Test-Path $zipFile) { Remove-Item -Force $zipFile -ErrorAction SilentlyContinue }
+    if (Test-Path -LiteralPath $tempDir) { Remove-Item -Recurse -Force -LiteralPath $tempDir -ErrorAction SilentlyContinue }
+    if (Test-Path -LiteralPath $zipFile) { Remove-Item -Force -LiteralPath $zipFile -ErrorAction SilentlyContinue }
   }
 }
 
 function Install-Dependencies {
   Write-Color "📦 Verificando dependências..." Yellow
   $npmPath = Join-Path $ScriptDir "node_modules"
-  if (-not (Test-Path $npmPath)) {
+  if (-not (Test-Path -LiteralPath $npmPath)) {
     Write-Color "   Instalando npm packages..." Yellow
-    Set-Location $ScriptDir
+    Set-Location -LiteralPath $ScriptDir
     npm install --production 2>&1 | Out-Null
   }
 }
@@ -116,9 +116,10 @@ $remoteInfo = Get-RemoteVersion
 if ($remoteInfo -and (Compare-Versions $localVersion $remoteInfo.version)) {
   Write-Color "✨ Nova versão disponível: v$($remoteInfo.version)" Green
   Update-Application $remoteInfo
-  $localVersion = $remoteInfo.version
-  $localVersion | ForEach-Object {
-    try { @{ version = $remoteInfo.version } | ConvertTo-Json | Set-Content $VersionFile } catch {}
+  try {
+    @{ version = $remoteInfo.version } | ConvertTo-Json | Set-Content -LiteralPath $VersionFile
+  } catch {
+    Write-Color "⚠️  Não foi possível atualizar version.json" Yellow
   }
 } else {
   Write-Color "✅ Você já está na versão mais recente!" Green
@@ -129,8 +130,12 @@ Install-Dependencies
 Write-Color "`n🚀 Iniciando bot..." Cyan
 Write-Color "   Pressione Ctrl+C para parar`n" DarkGray
 
-Set-Location $ScriptDir
-node index.js
+try {
+  Set-Location -LiteralPath $ScriptDir
+  node index.js
+} catch {
+  Write-Color "❌ Erro ao iniciar: $_" Red
+}
 
 Write-Color "`n❌ Bot encerrado. Pressione qualquer tecla para fechar..." DarkGray
 $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
