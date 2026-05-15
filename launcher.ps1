@@ -151,4 +151,4 @@ try {
 }
 
 Write-Color "`n❌ Bot encerrado. Pressione qualquer tecla para fechar..." DarkGray
-$null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+pause > $null
