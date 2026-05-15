@@ -7,6 +7,7 @@ import path from "path";
 const { MessageMedia } = pkg;
 const PREFIX = "!";
 const IGNORE = "🤖";
+const IGNORED = ["558496321255@c.us"];
 const HELP = `🎵 *Comandos*
 ${PREFIX}play <música>  —  Baixa e envia em MP3
 ${PREFIX}help           —  Mostra comandos
@@ -34,6 +35,7 @@ async function sendAudio(client, to, filePath, title) {
 
 const handler = async (client, msg, text) => {
   if (text.includes(IGNORE)) return;
+  if (IGNORED.includes(msg.from)) return;
   const cmd = parse(text);
   if (!cmd) return;
 
