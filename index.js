@@ -68,29 +68,23 @@ const musicFlow = async (msg, chat, query) => {
     for (const video of videos) {
       try {
         const filePath = await downloadAudio(video.url);
+        if (!fs.existsSync(filePath) || fs.statSync(filePath).size <= 1000) continue;
         await chat.sendStateTyping();
-        if (fs.existsSync(filePath) && fs.statSync(filePath).size > 1000) {
-          await client.sendMessage(msg.from, fs.readFileSync(filePath), {
-            sendMediaAsDocument: true,
-            fileName: path.basename(filePath),
-            caption: `🎵 ${video.title}`,
-          });
-          try { fs.unlinkSync(filePath); } catch {}
-          return;
-        }
+        await client.sendMessage(msg.from, fs.readFileSync(filePath), {
+          sendMediaAsDocument: true,
+          fileName: path.basename(filePath),
+          caption: `🎵 ${video.title}`,
+        });
+        try { fs.unlinkSync(filePath); } catch {}
+        return;
       } catch (e) {
         lastErr = e;
       }
     }
-    throw lastErr || new Error("Nenhum vídeo disponível para download.");
+    throw lastErr || new Error("Nenhum vídeo disponível.");
   } catch (err) {
     const m = err.message || "Erro desconhecido";
-    const log = `[${new Date().toISOString()}] ${err.stack || err.message}\n`;
-    fs.appendFileSync("erro.log", log);
-    if (m.includes("e.replace")) {
-      await msg.reply("❌ Erro salvo em erro.log. Mostre o conteudo pro criador.");
-      return;
-    }
+    try { fs.appendFileSync("erro.log", `[${new Date().toISOString()}] ${err.stack || err.message}\n`); } catch {}
     await msg.reply(`❌ ${m}`);
   }
 };
