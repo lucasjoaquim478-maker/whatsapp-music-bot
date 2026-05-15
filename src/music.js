@@ -30,16 +30,18 @@ function runYtDlp(args, timeout = 30000) {
 }
 
 export async function searchMusic(query) {
+  await ensureYtDlp();
+
   try {
     const json = await runYtDlp([
       "ytsearch1:" + query,
       "--dump-json",
       "--no-check-certificates",
       "--no-warnings",
-    ], 15000);
+    ], 20000);
 
     const data = JSON.parse(json.split("\n")[0]);
-    if (!data || !data.id) throw Error();
+    if (!data || !data.id) throw Error("JSON vazio");
 
     const duration = data.duration || 0;
     if (duration > config.maxDuration) {
@@ -54,7 +56,7 @@ export async function searchMusic(query) {
     };
   } catch (e) {
     if (e.message.includes("muito longa")) throw e;
-    throw new Error("Nenhum resultado encontrado.");
+    throw new Error(e.message || "Nenhum resultado encontrado");
   }
 }
 
