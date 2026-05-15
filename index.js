@@ -36,7 +36,7 @@ const handler = async (client, msg, text) => {
     try {
       await msg.reply(`🔍 Buscando: "${cmd.q}"...`);
       const videos = await searchMusic(cmd.q);
-      if (!videos.length) return await msg.reply("❌ Nenhum resultado.");
+      if (!videos.length) return await msg.reply("❌ Nenhum resultado encontrado.");
 
       const chat = await msg.getChat();
       await msg.reply(`🎵 ${videos[0].title}\n📥 Baixando...`);
@@ -45,19 +45,25 @@ const handler = async (client, msg, text) => {
       for (const v of videos) {
         try {
           const fp = await downloadAudio(v.url);
-          if (!fs.existsSync(fp) || fs.statSync(fp).size <= 1000) continue;
+          if (!fs.existsSync(fp) || fs.statSync(fp).size <= 1000) {
+            lastErr = new Error("Arquivo vazio ou não encontrado");
+            continue;
+          }
           await chat.sendStateTyping();
           await sendAudio(client, msg.from, fp, v.title);
           try { fs.unlinkSync(fp); } catch {}
           return;
         } catch (e) {
           lastErr = e;
-          try { fs.appendFileSync("log.txt", `[${new Date().toISOString()}] ERRO: ${e.message}\n`); } catch {}
+          const log = `[${new Date().toISOString()}] VIDEO ${v.title}: ${e.stack || e.message || e}\n`;
+          try { fs.appendFileSync("log.txt", log); } catch {}
         }
       }
       throw lastErr || new Error("Não foi possível baixar.");
     } catch (err) {
-      await msg.reply(`❌ ${err.message || "Erro"}`);
+      const log = `[${new Date().toISOString()}] FINAL: ${err.stack || err.message || err}\n`;
+      try { fs.appendFileSync("log.txt", log); } catch {}
+      await msg.reply(`❌ ${err && err.message ? err.message : "Erro desconhecido (ver log.txt)"}`);
     }
   }
 };
