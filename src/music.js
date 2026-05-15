@@ -1,22 +1,8 @@
-import ytdl from "@distube/ytdl-core";
+import youtubedl from "youtube-dl-exec";
 import ytSearch from "yt-search";
 import fs from "fs";
 import path from "path";
 import { config } from "./config.js";
-
-const agent = ytdl.createAgent([
-  {
-    url: "",
-    cookies: [],
-  },
-]);
-
-const requestOptions = {
-  headers: {
-    "User-Agent":
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-  },
-};
 
 export async function searchMusic(query) {
   const result = await ytSearch(query);
@@ -41,33 +27,31 @@ export async function downloadAudio(videoUrl) {
     fs.mkdirSync(config.cacheDir, { recursive: true });
   }
 
-  const info = await ytdl.getInfo(videoUrl, { agent, requestOptions });
-  const format =
-    ytdl.chooseFormat(info.formats, {
-      quality: "lowest",
-      filter: (f) => f.hasAudio && !f.hasVideo,
-    }) ||
-    ytdl.chooseFormat(info.formats, {
-      quality: "lowest",
-      filter: "audioonly",
+  const safeName = `audio_${Date.now()}`;
+  const output = path.join(config.cacheDir, `${safeName}.mp3`);
+
+  try {
+    await youtubedl(videoUrl, {
+      extractAudio: true,
+      audioFormat: "mp3",
+      output: output,
+      noCheckCertificates: true,
+      noWarnings: true,
+      preferFreeFormats: true,
+      addHeader: ["referer:youtube.com", "user-agent:Mozilla/5.0"],
     });
 
-  if (!format) throw new Error("Nenhum formato de áudio encontrado.");
+    if (!fs.existsSync(output) || fs.statSync(output).size === 0) {
+      throw new Error("Arquivo vazio ou não gerado.");
+    }
 
-  const ext = format.container || "m4a";
-  const safeName = info.videoDetails.title.replace(/[^a-zA-Z0-9]/g, "_").slice(0, 40);
-  const filePath = path.join(config.cacheDir, `${safeName}.${ext}`);
-
-  return new Promise((resolve, reject) => {
-    const stream = ytdl.downloadFromInfo(info, { format, agent, requestOptions })
-      .pipe(fs.createWriteStream(filePath));
-
-    stream.on("finish", () => resolve(filePath));
-    stream.on("error", (err) => {
-      try { fs.unlinkSync(filePath); } catch {}
-      reject(err);
-    });
-  });
+    return output;
+  } catch (err) {
+    if (fs.existsSync(output)) {
+      try { fs.unlinkSync(output); } catch {}
+    }
+    throw err;
+  }
 }
 
 export function cleanCache() {
