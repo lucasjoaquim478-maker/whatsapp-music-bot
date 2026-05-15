@@ -55,20 +55,32 @@ function parseCommand(text) {
 const musicFlow = async (msg, chat, query) => {
   try {
     await msg.reply(`🔍 Buscando: "${query}"...`);
-    const video = await searchMusic(query);
-    await msg.reply(`🎵 ${video.title}\n⏱ ${Math.floor(video.duration / 60)}:${String(video.duration % 60).padStart(2, "0")}\n📥 Baixando áudio...`);
-    const filePath = await downloadAudio(video.url);
-    await chat.sendStateTyping();
-    if (fs.existsSync(filePath) && fs.statSync(filePath).size > 1000) {
-      await client.sendMessage(msg.from, fs.readFileSync(filePath), {
-        sendMediaAsDocument: true,
-        fileName: path.basename(filePath),
-        caption: `🎵 ${video.title}`,
-      });
-      try { fs.unlinkSync(filePath); } catch {}
-    } else {
-      await msg.reply("❌ Erro ao processar o áudio. Tente outra música.");
+    const videos = await searchMusic(query);
+    if (!videos.length) {
+      await msg.reply("❌ Nenhum resultado encontrado.");
+      return;
     }
+    await msg.reply(`🎵 ${videos[0].title}\n⏱ ${Math.floor(videos[0].duration / 60)}:${String(videos[0].duration % 60).padStart(2, "0")}\n📥 Baixando áudio...`);
+
+    let lastErr = null;
+    for (const video of videos) {
+      try {
+        const filePath = await downloadAudio(video.url);
+        await chat.sendStateTyping();
+        if (fs.existsSync(filePath) && fs.statSync(filePath).size > 1000) {
+          await client.sendMessage(msg.from, fs.readFileSync(filePath), {
+            sendMediaAsDocument: true,
+            fileName: path.basename(filePath),
+            caption: `🎵 ${video.title}`,
+          });
+          try { fs.unlinkSync(filePath); } catch {}
+          return;
+        }
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+    throw lastErr || new Error("Nenhum vídeo disponível para download.");
   } catch (err) {
     const m = err.message || "Erro desconhecido";
     if (m.includes("e.replace")) {

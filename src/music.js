@@ -50,11 +50,19 @@ function run(args, timeout = 30000) {
 
 export async function searchMusic(query) {
   await ensureTools();
-  const json = await run(["ytsearch1:" + query, "--dump-json", "--no-check-certificates", "--no-warnings"], 20000);
-  const data = JSON.parse(json.split("\n")[0]);
-  if (!data || !data.id) throw new Error("Nenhum resultado encontrado");
-  if ((data.duration || 0) > config.maxDuration) throw new Error(`Música muito longa (máx ${Math.floor(config.maxDuration / 60)}min).`);
-  return { title: data.title || "", url: `https://youtube.com/watch?v=${data.id}`, duration: data.duration || 0, thumbnail: data.thumbnail || "" };
+  const json = await run(["ytsearch5:" + query, "--dump-json", "--no-check-certificates", "--no-warnings", "--no-playlist"], 30000);
+  const lines = json.split("\n").filter(l => l.trim());
+  const results = [];
+  for (const line of lines) {
+    try {
+      const d = JSON.parse(line);
+      if (d && d.id && (d.duration || 0) <= config.maxDuration) {
+        results.push({ title: d.title || "", url: `https://youtube.com/watch?v=${d.id}`, duration: d.duration || 0, thumbnail: d.thumbnail || "" });
+      }
+    } catch {}
+  }
+  if (!results.length) throw new Error("Nenhum resultado encontrado");
+  return results;
 }
 
 export async function downloadAudio(videoUrl) {
