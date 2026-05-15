@@ -1,5 +1,4 @@
 import { spawn } from "child_process";
-import ytSearch from "yt-search";
 import fs from "fs";
 import path from "path";
 import { config } from "./config.js";
@@ -12,17 +11,51 @@ async function ensureYtDlp() {
 
   const res = await fetch("https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe");
   if (!res.ok) throw new Error("Falha ao baixar yt-dlp.exe");
-  fs.writeFileSync(ytDlpPath, Buffer.from(await res.arrayBuffer()));
+  const buf = Buffer.from(await res.arrayBuffer());
+  fs.writeFileSync(ytDlpPath, buf);
+}
+
+function runYtDlp(args) {
+  return new Promise((resolve, reject) => {
+    let stdout = "";
+    let stderr = "";
+    const proc = spawn(ytDlpPath, args, { timeout: 30000 });
+    proc.stdout.on("data", (d) => { stdout += d.toString(); });
+    proc.stderr.on("data", (d) => { stderr += d.toString(); });
+    proc.on("close", (code) => {
+      if (code === 0 && stdout.trim()) return resolve(stdout.trim());
+      if (stdout.trim()) return resolve(stdout.trim());
+      reject(new Error(stderr.trim() || `Código: ${code}`));
+    });
+    proc.on("error", (e) => reject(e));
+  });
 }
 
 export async function searchMusic(query) {
-  const result = await ytSearch(query);
-  const video = result.videos?.[0];
-  if (!video) throw new Error("Nenhum resultado encontrado.");
-  if ((video.seconds || 0) > config.maxDuration) {
-    throw new Error(`Música muito longa (máx ${config.maxDuration}s).`);
+  const json = await runYtDlp([
+    "ytsearch1:" + query,
+    "--dump-json",
+    "--no-check-certificates",
+    "--no-warnings",
+  ]);
+
+  try {
+    const data = JSON.parse(json.split("\n")[0]);
+    if (!data) throw Error();
+    const duration = data.duration || 0;
+    if (duration > config.maxDuration) {
+      throw new Error(`Música muito longa (máx ${Math.floor(config.maxDuration / 60)}min).`);
+    }
+    return {
+      title: data.title || "Desconhecido",
+      url: data.webpage_url || `https://youtube.com/watch?v=${data.id}`,
+      duration,
+      thumbnail: data.thumbnail || "",
+    };
+  } catch (e) {
+    if (e.message.includes("muito longa")) throw e;
+    throw new Error("Nenhum resultado encontrado.");
   }
-  return { title: video.title, url: video.url, duration: video.seconds, thumbnail: video.thumbnail };
 }
 
 export async function downloadAudio(videoUrl) {
@@ -41,20 +74,17 @@ export async function downloadAudio(videoUrl) {
       "--no-warnings",
     ]);
 
-    proc.stderr.on("data", (d) => {
-      stderr += d.toString();
-      process.stdout.write(d);
-    });
+    proc.stderr.on("data", (d) => { stderr += d.toString(); });
     proc.on("close", (code) => {
       const files = fs.readdirSync(config.cacheDir);
-      const audioFile = files.find((f) => f.startsWith("audio_"));
-      if (audioFile && fs.statSync(path.join(config.cacheDir, audioFile)).size > 1000) {
-        return resolve(path.join(config.cacheDir, audioFile));
+      const audioFile = files.find((f) => f.startsWith("audio_") && f.endsWith(".m4a") || f.startsWith("audio_") && f.endsWith(".webm"));
+      if (audioFile) {
+        const fp = path.join(config.cacheDir, audioFile);
+        if (fs.statSync(fp).size > 1000) return resolve(fp);
       }
-      const msg = stderr.trim() || `Código de saída: ${code}`;
-      reject(new Error(msg.slice(0, 500)));
+      reject(new Error(stderr.slice(0, 400) || `Código: ${code}`));
     });
-    proc.on("error", (e) => reject(new Error(e.message)));
+    proc.on("error", (e) => reject(new Error(String(e))));
   });
 }
 
