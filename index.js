@@ -17,7 +17,7 @@ function parse(text) {
   }
   if ([`${PREFIX}help`, `${PREFIX}comandos`, `${PREFIX}ajuda`].some(c => t === c)) return { type: "help" };
   if (t.startsWith(PREFIX)) return { type: "unknown" };
-  return null;
+  return { type: "music", q: text };
 }
 
 async function sendAudio(client, to, filePath, title) {
@@ -31,7 +31,6 @@ async function sendAudio(client, to, filePath, title) {
 
 const handler = async (client, msg, text) => {
   const cmd = parse(text);
-  if (!cmd) return;
 
   if (cmd.type === "help") return await msg.reply(HELP);
   if (cmd.type === "unknown") return await msg.reply(`Use ${PREFIX}help para comandos.`);
