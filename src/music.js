@@ -12,11 +12,16 @@ const ytDlp = path.join(cacheDir, "yt-dlp.exe");
 const maxDur = 600;
 
 async function ensureYtDlp() {
-  if (fs.existsSync(ytDlp)) return;
+  if (fs.existsSync(ytDlp)) {
+    const stat = fs.statSync(ytDlp);
+    if (stat.size < 10000) { fs.unlinkSync(ytDlp); } else { return; }
+  }
   fs.mkdirSync(cacheDir, { recursive: true });
   const r = await fetch("https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe");
-  if (!r.ok) throw new Error("Falha ao baixar yt-dlp.exe");
-  fs.writeFileSync(ytDlp, Buffer.from(await r.arrayBuffer()));
+  if (!r.ok) throw new Error("Falha ao baixar yt-dlp.exe (HTTP " + r.status + ")");
+  const buf = Buffer.from(await r.arrayBuffer());
+  if (buf.length < 10000) throw new Error("yt-dlp.exe baixado parece invalido (" + buf.length + " bytes)");
+  fs.writeFileSync(ytDlp, buf);
 }
 
 function spawnYt(args, timeout) {
