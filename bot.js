@@ -62,15 +62,6 @@ async function askAI(question) {
   }
   return "❌ Nenhuma API key configurada (coloca groqKey ou geminiKey no config.json).";
 }
-  if (geminiKey) {
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contents: [{ parts: [{ text: question }] }] }),
-    });
-    if (r.ok) { const d = await r.json(); return d?.candidates?.[0]?.content?.parts?.[0]?.text || "❌ Sem resposta."; }
-  }
-  return "❌ Nenhuma API key configurada (coloca groqKey ou geminiKey no config.json).";
-}
 
 async function handleMusic(client, msg, query) {
   try {
