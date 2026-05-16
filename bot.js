@@ -8,16 +8,17 @@ const { MessageMedia } = pkg;
 const IGNORE = "🤖";
 const IGNORED = ["558496321255@c.us", "558498321255@c.us"];
 
-let groqKey = "";
+let groqKey = "", geminiKey = "";
 try {
   const cfg = JSON.parse(fs.readFileSync("./config.json", "utf8"));
   groqKey = cfg.groqKey || "";
+  geminiKey = cfg.geminiKey || "";
 } catch {}
 
 const HELP = `🎵 *Comandos*
 !play <música>    —  Baixa música em MP3
 !video <nome>      —  Baixa vídeo em MP4
-!ask <pergunta>    —  Responde com IA (Groq)
+!ask <pergunta>    —  Responde com IA
 !help              —  Mostra comandos
 
 Adicione "${IGNORE}" no final para o bot ignorar o comando.`;
@@ -37,16 +38,23 @@ async function sendVideo(client, to, filePath, title) {
   await client.sendMessage(to, media, { caption: `🎬 ${title}` });
 }
 
-async function askGroq(question) {
-  if (!groqKey) return "❌ Groq key não configurada (config.json).";
-  const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: "Bearer " + groqKey },
-    body: JSON.stringify({ model: "llama-3.1-8b-instant", messages: [{ role: "user", content: question }] }),
-  });
-  if (!r.ok) return `❌ Erro API: ${r.status}`;
-  const data = await r.json();
-  return data?.choices?.[0]?.message?.content || "❌ Sem resposta.";
+async function askAI(question) {
+  if (groqKey) {
+    const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + groqKey },
+      body: JSON.stringify({ model: "llama-3.1-8b-instant", messages: [{ role: "user", content: question }] }),
+    });
+    if (r.ok) { const d = await r.json(); return d?.choices?.[0]?.message?.content || "❌ Sem resposta."; }
+  }
+  if (geminiKey) {
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contents: [{ parts: [{ text: question }] }] }),
+    });
+    if (r.ok) { const d = await r.json(); return d?.candidates?.[0]?.content?.parts?.[0]?.text || "❌ Sem resposta."; }
+  }
+  return "❌ Nenhuma API key configurada (coloca groqKey ou geminiKey no config.json).";
 }
 
 async function handleMusic(client, msg, query) {
@@ -147,7 +155,7 @@ const handler = async (client, msg, text) => {
     const q = text.slice(prefixLen).trim();
     if (!q) return;
     await msg.reply("💭 Pensando...");
-    const answer = await askGroq(q);
+    const answer = await askAI(q);
     await msg.reply(answer);
     return;
   }
