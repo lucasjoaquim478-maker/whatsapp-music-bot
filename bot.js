@@ -42,16 +42,6 @@ async function sendVideo(client, to, filePath, title) {
 }
 
 async function askAI(question) {
-  if (opencodeKey) {
-    const r = await fetch("https://opencode.ai/zen/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: "Bearer " + opencodeKey },
-      body: JSON.stringify({ model: "gpt-5-nano", messages: [{ role: "user", content: question }], max_tokens: 256 }),
-    });
-    if (r.ok) { const d = await r.json(); return d?.choices?.[0]?.message?.content || "❌ Sem resposta."; }
-    const errBody = await r.text().catch(() => "");
-    return `❌ Erro OpenCode: ${r.status} ${errBody.slice(0, 200)}`;
-  }
   if (groqKey) {
     const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -61,6 +51,16 @@ async function askAI(question) {
     if (r.ok) { const d = await r.json(); return d?.choices?.[0]?.message?.content || "❌ Sem resposta."; }
     const errBody = await r.text().catch(() => "");
     return `❌ Erro Groq: ${r.status} ${errBody.slice(0, 200)}`;
+  }
+  if (opencodeKey) {
+    const r = await fetch("https://opencode.ai/zen/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + opencodeKey },
+      body: JSON.stringify({ model: "gpt-5-nano", messages: [{ role: "user", content: question }], max_tokens: 256 }),
+    });
+    if (r.ok) { const d = await r.json(); return d?.choices?.[0]?.message?.content || "❌ Sem resposta."; }
+    const errBody = await r.text().catch(() => "");
+    return `❌ Erro OpenCode: ${r.status} ${errBody.slice(0, 200)}`;
   }
   if (geminiKey) {
     const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`, {
