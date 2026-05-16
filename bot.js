@@ -42,7 +42,7 @@ async function askGroq(question) {
   const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: "Bearer " + groqKey },
-    body: JSON.stringify({ model: "llama3-8b-8192", messages: [{ role: "user", content: question }] }),
+    body: JSON.stringify({ model: "llama-3.1-8b-instant", messages: [{ role: "user", content: question }] }),
   });
   if (!r.ok) return `❌ Erro API: ${r.status}`;
   const data = await r.json();
