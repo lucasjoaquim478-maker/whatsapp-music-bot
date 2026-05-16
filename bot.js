@@ -6,7 +6,7 @@ import path from "path";
 
 const { MessageMedia } = pkg;
 const IGNORE = "🤖";
-const IGNORED = ["558496321255@c.us"];
+const IGNORED = ["558496321255@c.us", "558498321255@c.us"];
 
 let geminiKey = "";
 try {
