@@ -55,9 +55,10 @@ function Get-RemoteVersion {
   try {
     $url = "https://api.github.com/repos/$RepoOwner/$RepoName/releases/latest"
     $release = Invoke-RestMethod -Uri $url -ErrorAction Stop
+    $zipAsset = $release.assets | Where-Object { $_.name -like "*.zip" } | Select-Object -First 1
     return @{
       version = $release.tag_name.TrimStart('v')
-      downloadUrl = $release.zipball_url
+      downloadUrl = if ($zipAsset) { $zipAsset.browser_download_url } else { $release.zipball_url }
       htmlUrl = $release.html_url
     }
   } catch {
