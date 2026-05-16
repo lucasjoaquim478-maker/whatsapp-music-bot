@@ -78,6 +78,36 @@ export async function downloadAudio(videoUrl) {
   });
 }
 
+export async function downloadVideo(videoUrl) {
+  await ensureYtDlp();
+  const out = path.join(cacheDir, "video_%(id)s.%(ext)s");
+  const args = [
+    videoUrl, "-f", "bestvideo[height<=360]+bestaudio/best[height<=360]",
+    "--merge-output-format", "mp4",
+    "--output", out, "--no-part", "--no-mtime",
+    "--no-check-certificates", "--no-warnings",
+  ];
+  if (ffmpegDir) args.push("--ffmpeg-location", ffmpegDir);
+
+  return new Promise((resolve, reject) => {
+    let err = "";
+    const p = spawn(ytDlp, args, { timeout: 180000 });
+
+    p.stderr.on("data", (d) => { err += d.toString(); });
+    p.on("close", (c) => {
+      try {
+        const files = fs.readdirSync(cacheDir).filter(f => f.startsWith("video_"));
+        for (const f of files) {
+          const fp = path.join(cacheDir, f);
+          if (fs.statSync(fp).size > 1000) return resolve(fp);
+        }
+        reject(new Error((err || `Código ${c}`).slice(0, 300)));
+      } catch (e) { reject(new Error(String(e && e.message ? e.message : e))); }
+    });
+    p.on("error", (e) => reject(new Error(String(e && e.message ? e.message : e))));
+  });
+}
+
 export function cleanCache() {
   try {
     for (const f of fs.readdirSync(cacheDir)) {
