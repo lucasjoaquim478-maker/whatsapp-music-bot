@@ -5,7 +5,6 @@ import fs from "fs";
 import path from "path";
 
 const { MessageMedia } = pkg;
-const PREFIX = "!";
 const IGNORE = "🤖";
 const IGNORED = ["558496321255@c.us"];
 
@@ -16,28 +15,12 @@ try {
 } catch {}
 
 const HELP = `🎵 *Comandos*
-${PREFIX}play <música>    —  Baixa música em MP3
-${PREFIX}video <nome>      —  Baixa vídeo em MP4
-${PREFIX}ask <pergunta>    —  Responde com IA (Gemini)
-${PREFIX}help              —  Mostra comandos
+!play <música>    —  Baixa música em MP3
+!video <nome>      —  Baixa vídeo em MP4
+!ask <pergunta>    —  Responde com IA (Gemini)
+!help              —  Mostra comandos
 
 Adicione "${IGNORE}" no final para o bot ignorar o comando.`;
-
-function parse(text) {
-  const t = text.toLowerCase().trim();
-  for (const c of [`${PREFIX}play `, `${PREFIX}tocar `, `${PREFIX}baixar `, `${PREFIX}musica `]) {
-    if (t.startsWith(c)) return { type: "music", q: text.slice(c.length).trim() };
-  }
-  if ([`${PREFIX}help`, `${PREFIX}comandos`, `${PREFIX}ajuda`].some(c => t === c)) return { type: "help" };
-  for (const c of [`${PREFIX}ask `, `${PREFIX}pergunta `]) {
-    if (t.startsWith(c)) return { type: "ask", q: text.slice(c.length).trim() };
-  }
-  if (t === `${PREFIX}ask` || t === `${PREFIX}pergunta`) return { type: "ask", q: "" };
-  for (const c of [`${PREFIX}video `, `${PREFIX}video`]) {
-    if (t.startsWith(c)) return { type: "video", q: text.slice(c.length).trim() };
-  }
-  return null;
-}
 
 async function sendAudio(client, to, filePath, title) {
   const ext = path.extname(filePath).toLowerCase();
@@ -67,82 +50,104 @@ async function askGemini(question) {
   return txt || "❌ Sem resposta.";
 }
 
+async function handleMusic(client, msg, query) {
+  try {
+    await msg.reply(`🔍 Buscando: "${query}"...`);
+    const videos = await searchMusic(query);
+    if (!videos.length) return await msg.reply("❌ Nenhum resultado encontrado.");
+
+    await msg.reply(`🎵 ${videos[0].title}\n📥 Baixando...`);
+
+    let sent = false;
+    for (const v of videos) {
+      try {
+        const fp = await downloadAudio(v.url);
+        if (!fs.existsSync(fp) || fs.statSync(fp).size <= 1000) continue;
+
+        try {
+          await sendAudio(client, msg.from, fp, v.title);
+          sent = true;
+        } catch {
+          const buf = fs.readFileSync(fp);
+          await client.sendMessage(msg.from, buf, { caption: `🎵 ${v.title}` });
+          sent = true;
+        }
+
+        try { fs.unlinkSync(fp); } catch {}
+        if (sent) return;
+      } catch (e) {
+        try { fs.appendFileSync("log.txt", `[${new Date().toISOString()}] ${v.title}: ${e.stack || e}\n`); } catch {}
+      }
+    }
+
+    await msg.reply(`❌ Não consegui enviar o áudio. Link: ${videos[0].url}`);
+  } catch (err) {
+    try { fs.appendFileSync("log.txt", `[${new Date().toISOString()}] ${err.stack || err}\n`); } catch {}
+    await msg.reply(`❌ Erro. Detalhes salvos em log.txt`);
+  }
+}
+
+async function handleVideo(client, msg, query) {
+  try {
+    await msg.reply(`🔍 Buscando: "${query}"...`);
+    const videos = await searchMusic(query);
+    if (!videos.length) return await msg.reply("❌ Nenhum resultado encontrado.");
+
+    await msg.reply(`🎬 ${videos[0].title}\n📥 Baixando vídeo...`);
+
+    const fp = await downloadVideo(videos[0].url);
+    if (!fs.existsSync(fp) || fs.statSync(fp).size <= 1000)
+      return await msg.reply("❌ Vídeo muito grande ou erro no download.");
+
+    try {
+      await sendVideo(client, msg.from, fp, videos[0].title);
+    } catch {
+      await msg.reply(`❌ Vídeo muito grande para enviar. Link: ${videos[0].url}`);
+    }
+
+    try { fs.unlinkSync(fp); } catch {}
+  } catch (err) {
+    try { fs.appendFileSync("log.txt", `[${new Date().toISOString()}] ${err.stack || err}\n`); } catch {}
+    await msg.reply(`❌ Erro. Detalhes salvos em log.txt`);
+  }
+}
+
 const handler = async (client, msg, text) => {
   if (text.includes(IGNORE)) return;
   if (IGNORED.includes(msg.from)) return;
-  if (!text.startsWith(PREFIX)) return;
-  const cmd = parse(text);
-  if (!cmd) return;
 
-  if (cmd.type === "help") return await msg.reply(HELP);
+  const t = text.toLowerCase().trim();
 
-  if (cmd.type === "ask" && cmd.q) {
-    await msg.reply(`💭 Pensando...`);
-    const answer = await askGemini(cmd.q);
+  if (!t.startsWith("!")) return;
+
+  // !help / !comandos / !ajuda
+  if (t === "!help" || t === "!comandos" || t === "!ajuda") {
+    return await msg.reply(HELP);
+  }
+
+  // !play <query> / !tocar / !baixar / !musica
+  if (t.startsWith("!play ") || t.startsWith("!tocar ") || t.startsWith("!baixar ") || t.startsWith("!musica ")) {
+    const q = text.slice(6).trim();
+    if (!q) return;
+    return await handleMusic(client, msg, q);
+  }
+
+  // !video <query>
+  if (t.startsWith("!video ")) {
+    const q = text.slice(7).trim();
+    if (!q) return;
+    return await handleVideo(client, msg, q);
+  }
+
+  // !ask <query> / !pergunta <query>
+  if (t.startsWith("!ask ") || t.startsWith("!pergunta ")) {
+    const prefixLen = t.startsWith("!ask ") ? 5 : 10;
+    const q = text.slice(prefixLen).trim();
+    if (!q) return;
+    await msg.reply("💭 Pensando...");
+    const answer = await askGemini(q);
     await msg.reply(answer);
     return;
-  }
-
-  if (cmd.type === "music" && cmd.q) {
-    try {
-      await msg.reply(`🔍 Buscando: "${cmd.q}"...`);
-      const videos = await searchMusic(cmd.q);
-      if (!videos.length) return await msg.reply("❌ Nenhum resultado encontrado.");
-
-      await msg.reply(`🎵 ${videos[0].title}\n📥 Baixando...`);
-
-      let sent = false;
-      for (const v of videos) {
-        try {
-          const fp = await downloadAudio(v.url);
-          if (!fs.existsSync(fp) || fs.statSync(fp).size <= 1000) continue;
-
-          try {
-            await sendAudio(client, msg.from, fp, v.title);
-            sent = true;
-          } catch {
-            const buf = fs.readFileSync(fp);
-            await client.sendMessage(msg.from, buf, { caption: `🎵 ${v.title}` });
-            sent = true;
-          }
-
-          try { fs.unlinkSync(fp); } catch {}
-          if (sent) return;
-        } catch (e) {
-          try { fs.appendFileSync("log.txt", `[${new Date().toISOString()}] ${v.title}: ${e.stack || e}\n`); } catch {}
-        }
-      }
-
-      await msg.reply(`❌ Não consegui enviar o áudio. Link: ${videos[0].url}`);
-    } catch (err) {
-      try { fs.appendFileSync("log.txt", `[${new Date().toISOString()}] ${err.stack || err}\n`); } catch {}
-      await msg.reply(`❌ Erro. Detalhes salvos em log.txt`);
-    }
-  }
-
-  if (cmd.type === "video" && cmd.q) {
-    try {
-      await msg.reply(`🔍 Buscando: "${cmd.q}"...`);
-      const videos = await searchMusic(cmd.q);
-      if (!videos.length) return await msg.reply("❌ Nenhum resultado encontrado.");
-
-      await msg.reply(`🎬 ${videos[0].title}\n📥 Baixando vídeo...`);
-
-      const fp = await downloadVideo(videos[0].url);
-      if (!fs.existsSync(fp) || fs.statSync(fp).size <= 1000)
-        return await msg.reply("❌ Vídeo muito grande ou erro no download.");
-
-      try {
-        await sendVideo(client, msg.from, fp, videos[0].title);
-      } catch {
-        await msg.reply(`❌ Vídeo muito grande para enviar. Link: ${videos[0].url}`);
-      }
-
-      try { fs.unlinkSync(fp); } catch {}
-    } catch (err) {
-      try { fs.appendFileSync("log.txt", `[${new Date().toISOString()}] ${err.stack || err}\n`); } catch {}
-      await msg.reply(`❌ Erro. Detalhes salvos em log.txt`);
-    }
   }
 };
 
