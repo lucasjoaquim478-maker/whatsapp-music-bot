@@ -15,7 +15,7 @@ try {
   const cfg = JSON.parse(fs.readFileSync(path.join(__dirname, "config.json"), "utf8"));
   groqKey = cfg.groqKey || "";
   geminiKey = cfg.geminiKey || "";
-} catch {}
+} catch (e) { console.error("config.json inválido ou não encontrado:", e.message); }
 
 const HELP = `🎵 *Comandos*
 !play <música>    —  Baixa música em MP3
