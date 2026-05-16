@@ -2,14 +2,16 @@ import { spawn } from "child_process";
 import fs from "fs";
 import path from "path";
 import { createRequire } from "module";
+import { fileURLToPath } from "url";
 
 const require = createRequire(import.meta.url);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 let ffmpegDir = null;
 try { ffmpegDir = path.dirname(require("ffmpeg-static")); } catch {}
 
-const cacheDir = path.join(process.cwd(), "temp");
+const cacheDir = path.join(__dirname, "..", "temp");
 const ytDlp = path.join(cacheDir, "yt-dlp.exe");
-const maxDur = 3600;
+const maxDur = 7200;
 
 async function ensureYtDlp() {
   if (fs.existsSync(ytDlp)) {
@@ -40,7 +42,7 @@ function spawnYt(args, timeout) {
 
 export async function searchMusic(query) {
   await ensureYtDlp();
-  const json = await spawnYt(["ytsearch5:" + query, "--dump-json", "--no-check-certificates", "--no-warnings", "--no-playlist"], 30000);
+  const json = await spawnYt(["ytsearch2:" + query, "--dump-json", "--no-check-certificates", "--no-warnings", "--no-playlist"], 20000);
   const results = [];
   for (const line of json.split("\n").filter(l => l.trim())) {
     try {
@@ -66,7 +68,7 @@ export async function downloadAudio(videoUrl) {
 
   return new Promise((resolve, reject) => {
     let err = "";
-    const p = spawn(ytDlp, args, { timeout: 120000 });
+    const p = spawn(ytDlp, args, { timeout: 300000 });
 
     p.stderr.on("data", (d) => { err += d.toString(); });
     p.on("close", (c) => {
@@ -96,7 +98,7 @@ export async function downloadVideo(videoUrl) {
 
   return new Promise((resolve, reject) => {
     let err = "";
-    const p = spawn(ytDlp, args, { timeout: 180000 });
+    const p = spawn(ytDlp, args, { timeout: 300000 });
 
     p.stderr.on("data", (d) => { err += d.toString(); });
     p.on("close", (c) => {

@@ -71,26 +71,15 @@ async function handleMusic(client, msg, query) {
 
     await msg.reply(`🎵 ${videos[0].title}\n📥 Baixando...`);
 
-    let sent = false;
-    for (const v of videos) {
-      try {
-        const fp = await downloadAudio(v.url);
-        if (!fs.existsSync(fp) || fs.statSync(fp).size <= 1000) continue;
-
-        try {
-          await sendAudio(client, msg.from, fp, v.title);
-          sent = true;
-        } catch {
-          const buf = fs.readFileSync(fp);
-          await client.sendMessage(msg.from, buf, { caption: `🎵 ${v.title}` });
-          sent = true;
-        }
-
+    try {
+      const fp = await downloadAudio(videos[0].url);
+      if (fp && fs.existsSync(fp) && fs.statSync(fp).size > 1000) {
+        await sendAudio(client, msg.from, fp, videos[0].title);
         try { fs.unlinkSync(fp); } catch {}
-        if (sent) return;
-      } catch (e) {
-        try { fs.appendFileSync("log.txt", `[${new Date().toISOString()}] ${v.title}: ${e.stack || e}\n`); } catch {}
+        return;
       }
+    } catch (e) {
+      try { fs.appendFileSync("log.txt", `[${new Date().toISOString()}] ${videos[0].title}: ${e.stack || e}\n`); } catch {}
     }
 
     await msg.reply(`❌ Não consegui enviar o áudio. Link: ${videos[0].url}`);
