@@ -126,10 +126,13 @@ const handler = async (client, msg, text) => {
   }
 
   // !play <query> / !tocar / !baixar / !musica
-  if (t.startsWith("!play ") || t.startsWith("!tocar ") || t.startsWith("!baixar ") || t.startsWith("!musica ")) {
-    const q = text.slice(6).trim();
-    if (!q) return;
-    return await handleMusic(client, msg, q);
+  const musicPrefixes = { "!play ": 6, "!tocar ": 7, "!baixar ": 8, "!musica ": 8 };
+  for (const [pref, len] of Object.entries(musicPrefixes)) {
+    if (t.startsWith(pref)) {
+      const q = text.slice(len).trim();
+      if (!q) return;
+      return await handleMusic(client, msg, q);
+    }
   }
 
   // !video <query>

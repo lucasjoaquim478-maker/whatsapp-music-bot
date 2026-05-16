@@ -9,7 +9,7 @@ try { ffmpegDir = path.dirname(require("ffmpeg-static")); } catch {}
 
 const cacheDir = path.join(process.cwd(), "temp");
 const ytDlp = path.join(cacheDir, "yt-dlp.exe");
-const maxDur = 600;
+const maxDur = 3600;
 
 async function ensureYtDlp() {
   if (fs.existsSync(ytDlp)) {
