@@ -3,14 +3,16 @@ import { searchMusic, downloadAudio, downloadVideo, cleanCache } from "./src/mus
 import pkg from "whatsapp-web.js";
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 
 const { MessageMedia } = pkg;
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const IGNORE = "🤖";
 const IGNORED = ["558496321255@c.us", "558498321255@c.us"];
 
 let groqKey = "", geminiKey = "";
 try {
-  const cfg = JSON.parse(fs.readFileSync("./config.json", "utf8"));
+  const cfg = JSON.parse(fs.readFileSync(path.join(__dirname, "config.json"), "utf8"));
   groqKey = cfg.groqKey || "";
   geminiKey = cfg.geminiKey || "";
 } catch {}
@@ -46,7 +48,20 @@ async function askAI(question) {
       body: JSON.stringify({ model: "llama-3.1-8b-instant", messages: [{ role: "user", content: question }] }),
     });
     if (r.ok) { const d = await r.json(); return d?.choices?.[0]?.message?.content || "❌ Sem resposta."; }
+    const errBody = await r.text().catch(() => "");
+    return `❌ Erro Groq: ${r.status} ${errBody.slice(0, 200)}`;
   }
+  if (geminiKey) {
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contents: [{ parts: [{ text: question }] }] }),
+    });
+    if (r.ok) { const d = await r.json(); return d?.candidates?.[0]?.content?.parts?.[0]?.text || "❌ Sem resposta."; }
+    const errBody = await r.text().catch(() => "");
+    return `❌ Erro Gemini: ${r.status} ${errBody.slice(0, 200)}`;
+  }
+  return "❌ Nenhuma API key configurada (coloca groqKey ou geminiKey no config.json).";
+}
   if (geminiKey) {
     const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`, {
       method: "POST", headers: { "Content-Type": "application/json" },
