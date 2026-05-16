@@ -10,9 +10,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const IGNORE = "🤖";
 const IGNORED = ["558496321255@c.us", "558498321255@c.us"];
 
-let groqKey = "", geminiKey = "";
+let opencodeKey = "", groqKey = "", geminiKey = "";
 try {
   const cfg = JSON.parse(fs.readFileSync(path.join(__dirname, "config.json"), "utf8"));
+  opencodeKey = cfg.opencodeKey || "";
   groqKey = cfg.groqKey || "";
   geminiKey = cfg.geminiKey || "";
 } catch (e) { console.error("config.json inválido ou não encontrado:", e.message); }
@@ -41,6 +42,16 @@ async function sendVideo(client, to, filePath, title) {
 }
 
 async function askAI(question) {
+  if (opencodeKey) {
+    const r = await fetch("https://opencode.ai/zen/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + opencodeKey },
+      body: JSON.stringify({ model: "deepseek-v4-flash-free", messages: [{ role: "user", content: question }] }),
+    });
+    if (r.ok) { const d = await r.json(); return d?.choices?.[0]?.message?.content || "❌ Sem resposta."; }
+    const errBody = await r.text().catch(() => "");
+    return `❌ Erro OpenCode: ${r.status} ${errBody.slice(0, 200)}`;
+  }
   if (groqKey) {
     const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -60,7 +71,7 @@ async function askAI(question) {
     const errBody = await r.text().catch(() => "");
     return `❌ Erro Gemini: ${r.status} ${errBody.slice(0, 200)}`;
   }
-  return "❌ Nenhuma API key configurada (coloca groqKey ou geminiKey no config.json).";
+  return "❌ Nenhuma API key configurada (coloca opencodeKey, groqKey ou geminiKey no config.json).";
 }
 
 async function handleMusic(client, msg, query) {
