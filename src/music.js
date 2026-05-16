@@ -87,7 +87,7 @@ export async function downloadVideo(videoUrl) {
   await ensureYtDlp();
   const out = path.join(cacheDir, "video_%(id)s.%(ext)s");
   const args = [
-    videoUrl, "-f", "bestvideo[height<=360]+bestaudio/best[height<=360]",
+    videoUrl, "-f", "best[height<=360][filesize<50M]/bestvideo[height<=360]+bestaudio/best[height<=360]",
     "--merge-output-format", "mp4",
     "--output", out, "--no-part", "--no-mtime",
     "--no-check-certificates", "--no-warnings",

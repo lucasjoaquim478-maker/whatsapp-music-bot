@@ -108,14 +108,20 @@ async function handleVideo(client, msg, query) {
 
     await msg.reply(`🎬 ${videos[0].title}\n📥 Baixando vídeo...`);
 
-    const fp = await downloadVideo(videos[0].url);
+    let fp = null;
+    try {
+      fp = await downloadVideo(videos[0].url);
+    } catch (e) {
+      try { fs.appendFileSync("log.txt", `[${new Date().toISOString()}] video download: ${e.stack || e}\n`); } catch {}
+      return await msg.reply(`❌ Erro no download. Link: ${videos[0].url}`);
+    }
     if (!fs.existsSync(fp) || fs.statSync(fp).size <= 1000)
-      return await msg.reply("❌ Vídeo muito grande ou erro no download.");
+      return await msg.reply(`❌ Vídeo vazio. Link: ${videos[0].url}`);
 
     try {
       await sendVideo(client, msg.from, fp, videos[0].title);
     } catch {
-      await msg.reply(`❌ Vídeo muito grande para enviar. Link: ${videos[0].url}`);
+      await msg.reply(`❌ Muito grande pra enviar. Link: ${videos[0].url}`);
     }
 
     try { fs.unlinkSync(fp); } catch {}
