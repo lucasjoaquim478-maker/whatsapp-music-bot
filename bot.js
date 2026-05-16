@@ -46,7 +46,7 @@ async function askAI(question) {
     const r = await fetch("https://opencode.ai/zen/v1/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: "Bearer " + opencodeKey },
-      body: JSON.stringify({ model: "deepseek-v4-flash-free", messages: [{ role: "user", content: question }] }),
+      body: JSON.stringify({ model: "gpt-5-nano", messages: [{ role: "user", content: question }], max_tokens: 256 }),
     });
     if (r.ok) { const d = await r.json(); return d?.choices?.[0]?.message?.content || "❌ Sem resposta."; }
     const errBody = await r.text().catch(() => "");
