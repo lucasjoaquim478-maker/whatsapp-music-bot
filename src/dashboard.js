@@ -1,11 +1,13 @@
 import express from "express";
 import http from "http";
+import { spawn } from "child_process";
 
 const logs = [];
 const maxLogs = 500;
 let sseClients = [];
 let botStatus = "iniciando";
 let qrData = null;
+let tunnelUrl = null;
 
 export function emitLog(level, msg) {
   const entry = { time: new Date().toISOString(), level, msg };
@@ -159,5 +161,33 @@ updateStatus();
 
   server.listen(port, () => {
     emitLog("SYSTEM", `Dashboard: http://localhost:${port}`);
+    startTunnel(port);
   });
 }
+
+function startTunnel(port) {
+  const isWindows = process.platform === "win32";
+  if (isWindows) return;
+
+  const proc = spawn("ssh", ["-R", "80:localhost:" + port, "nokey@localhost.run"], {
+    stdio: ["ignore", "pipe", "pipe"],
+    timeout: 15000,
+  });
+
+  proc.stderr.on("data", (data) => {
+    const text = data.toString();
+    const m = text.match(/https?:\/\/[^\s]+/);
+    if (m) {
+      tunnelUrl = m[0].replace(/\/$/, "");
+      emitLog("SYSTEM", "🌍 Tunnel: " + tunnelUrl);
+      console.log("Dashboard publico: " + tunnelUrl);
+    }
+  });
+
+  proc.on("error", () => {});
+  proc.on("close", () => {
+    setTimeout(() => startTunnel(port), 30000);
+  });
+}
+
+export function getTunnelUrl() { return tunnelUrl; }

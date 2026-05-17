@@ -1,5 +1,6 @@
 import pkg from "whatsapp-web.js";
 import qrcode from "qrcode-terminal";
+import { getTunnelUrl } from "./dashboard.js";
 
 const { Client, LocalAuth } = pkg;
 
@@ -59,6 +60,10 @@ export function createClient(onMessage, dash = {}) {
     c.on("qr", (qr) => {
       console.log("\nEscaneie o QR Code:\n");
       qrcode.generate(qr, { small: true });
+      const qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=" + encodeURIComponent(qr);
+      console.log("QR URL: " + qrUrl);
+      const tunnel = getTunnelUrl();
+      if (tunnel) console.log("Dashboard: " + tunnel + "\n");
       if (setQR) setQR(qr);
       if (setStatus) setStatus("qr");
       retries = 0;
