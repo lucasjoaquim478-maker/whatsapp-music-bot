@@ -5,44 +5,62 @@ const { Client, LocalAuth } = pkg;
 
 export function createClient(onMessage, dash = {}) {
   const { setStatus, setQR } = dash;
+  let reconnectTimer = null;
 
-  const client = new Client({
-    authStrategy: new LocalAuth({ dataPath: process.env.RAILWAY_VOLUME_MOUNT_PATH || "./session" }),
-    puppeteer: {
-      headless: true,
-      executablePath: process.env.CHROMIUM_PATH || undefined,
-      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
-    },
-  });
+  function startClient() {
+    const client = new Client({
+      authStrategy: new LocalAuth({ dataPath: process.env.RAILWAY_VOLUME_MOUNT_PATH || "./session" }),
+      puppeteer: {
+        headless: true,
+        executablePath: process.env.CHROMIUM_PATH || undefined,
+        args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
+      },
+    });
 
-  client.on("qr", (qr) => {
-    console.log("\nEscaneie o QR Code:\n");
-    qrcode.generate(qr, { small: true });
-    if (setQR) setQR(qr);
-  });
+    client.on("qr", (qr) => {
+      console.log("\nEscaneie o QR Code:\n");
+      qrcode.generate(qr, { small: true });
+      if (setQR) setQR(qr);
+    });
 
-  client.on("authenticated", () => {
-    console.log("Autenticado!");
-    if (setStatus) setStatus("authenticated");
-  });
+    client.on("authenticated", () => {
+      console.log("Autenticado!");
+      if (setStatus) setStatus("authenticated");
+    });
 
-  client.on("ready", () => {
-    console.log("WhatsApp conectado!");
-    if (setStatus) setStatus("connected");
-    if (setQR) setQR(null);
-  });
+    client.on("ready", () => {
+      console.log("WhatsApp conectado!");
+      if (setStatus) setStatus("connected");
+      if (setQR) setQR(null);
+    });
 
-  client.on("disconnected", (r) => {
-    console.log("Desconectado:", r);
-    if (setStatus) setStatus("disconnected");
-  });
+    client.on("disconnected", (r) => {
+      console.log("Desconectado:", r);
+      if (setStatus) setStatus("disconnected");
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(() => {
+        console.log("Reconectando...");
+        client.initialize().catch(e => console.error("Erro ao reconectar:", e.message));
+      }, 5000);
+    });
 
-  client.on("message", async (msg) => {
-    if (msg.fromMe) return;
-    const text = msg.body?.trim();
-    if (!text) return;
-    await onMessage(client, msg, text);
-  });
+    client.on("message", async (msg) => {
+      if (msg.fromMe) return;
+      const text = msg.body?.trim();
+      if (!text) return;
+      try { await onMessage(client, msg, text); } catch (e) {
+        console.error("Erro ao processar mensagem:", e.message);
+      }
+    });
 
-  return client;
+    client.initialize().catch(e => {
+      console.error("Erro ao iniciar cliente:", e.message);
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(startClient, 10000);
+    });
+
+    return client;
+  }
+
+  return startClient();
 }
