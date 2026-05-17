@@ -47,49 +47,79 @@ export function startDashboard(port = 3000) {
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>WhatsApp Bot - Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>WhatsApp Bot</title>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family:system-ui,sans-serif; background:#111; color:#eee; padding:20px; }
-    h1 { color:#25D366; margin-bottom:10px; }
-    #status { padding:10px 15px; border-radius:8px; display:inline-block; margin-bottom:20px; font-weight:bold; }
-    .online { background:#075E54; color:#fff; }
-    .offline { background:#333; color:#999; }
+    body { font-family:system-ui,sans-serif; background:#0d1117; color:#c9d1d9; padding:16px; }
+    h1 { color:#25D366; font-size:1.5rem; margin-bottom:12px; }
+    .top { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
+    #status { padding:6px 14px; border-radius:20px; font-size:0.85rem; font-weight:600; }
+    .connected { background:#075E54; color:#fff; }
+    .disconnected { background:#3d1f1f; color:#f87171; }
+    .reconnecting { background:#1a3a2a; color:#25D366; }
+    .authenticated { background:#1a3a5a; color:#60a5fa; }
+    .qr { background:#3d2e1f; color:#fbbf24; }
     .iniciando { background:#1a3a2a; color:#25D366; }
-    #logs { background:#1a1a1a; border-radius:8px; padding:15px; height:60vh; overflow-y:auto; font-family:monospace; font-size:13px; }
-    .log-entry { padding:2px 0; border-bottom:1px solid #222; }
-    .log-time { color:#666; margin-right:10px; }
-    .log-INFO { color:#4fc3f7; }
-    .log-ERROR { color:#ef5350; }
-    .log-WARN { color:#ffa726; }
-    .log-SYSTEM { color:#aaa; }
-    .log-COMMAND { color:#81c784; }
-    #qr { margin-top:15px; }
-    #qr img { max-width:300px; border-radius:8px; }
-    #qr { display:none; }
-    .footer { margin-top:15px; color:#555; font-size:12px; }
+    #qr-box { background:#1a1a2e; border-radius:12px; padding:24px; text-align:center; margin-bottom:16px; display:none; border:2px dashed #25D366; }
+    #qr-box.visible { display:block; }
+    #qr-box h2 { color:#25D366; font-size:1.1rem; margin-bottom:8px; }
+    #qr-box p { color:#8b949e; font-size:0.85rem; margin-bottom:16px; }
+    #qr-box img { max-width:260px; width:100%; height:auto; border-radius:8px; background:#fff; padding:12px; }
+    .logs-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+    .logs-header h2 { font-size:1rem; color:#8b949e; }
+    #clear-logs { background:#21262d; border:1px solid #30363d; color:#c9d1d9; padding:4px 10px; border-radius:6px; cursor:pointer; font-size:0.8rem; }
+    #clear-logs:hover { background:#30363d; }
+    #logs { background:#161b22; border:1px solid #30363d; border-radius:8px; padding:10px; height:50vh; overflow-y:auto; font-family:'Cascadia Code','Fira Code','Consolas',monospace; font-size:0.8rem; line-height:1.5; }
+    #logs:empty::after { content:"Aguardando logs..."; color:#484f58; }
+    .log-entry { padding:1px 0; border-bottom:1px solid #21262d; word-break:break-all; }
+    .log-time { color:#484f58; margin-right:8px; user-select:none; }
+    .log-INFO { color:#58a6ff; }
+    .log-ERROR { color:#f85149; }
+    .log-WARN { color:#d29922; }
+    .log-SYSTEM { color:#8b949e; }
+    .log-COMMAND { color:#3fb950; }
+    .footer { margin-top:12px; color:#484f58; font-size:0.75rem; text-align:center; }
+    @media (max-width:480px) {
+      body { padding:10px; }
+      #qr-box { padding:16px; }
+      #qr-box img { max-width:200px; }
+      #logs { height:40vh; font-size:0.7rem; }
+    }
   </style>
 </head>
 <body>
   <h1>WhatsApp Bot</h1>
-  <div id="status" class="iniciando">Conectando...</div>
-  <div id="qr"></div>
-  <h2 style="margin:15px 0 10px">Logs</h2>
+  <div class="top">
+    <span id="status" class="iniciando">Iniciando...</span>
+  </div>
+  <div id="qr-box">
+    <h2>Escaneie o QR Code</h2>
+    <p>Abra o WhatsApp > Menu > Aparelhos conectados > Conectar</p>
+    <img id="qr-img" src="" alt="QR Code">
+  </div>
+  <div class="logs-header">
+    <h2>Logs</h2>
+    <button id="clear-logs">Limpar</button>
+  </div>
   <div id="logs"></div>
-  <div class="footer">Logs em tempo real</div>
+  <div class="footer">Logs em tempo real &middot; WhatsApp Bot</div>
 
 <script>
 const statusEl = document.getElementById("status");
-const qrEl = document.getElementById("qr");
+const qrBox = document.getElementById("qr-box");
+const qrImg = document.getElementById("qr-img");
 const logsEl = document.getElementById("logs");
+const clearBtn = document.getElementById("clear-logs");
+
+clearBtn.onclick = () => { logsEl.innerHTML = ""; };
 
 const evtSource = new EventSource("/api/logs/stream");
 evtSource.onmessage = (e) => {
   const entry = JSON.parse(e.data);
   const div = document.createElement("div");
   div.className = "log-entry log-" + entry.level;
-  div.innerHTML = '<span class="log-time">' + entry.time.slice(11,19) + '</span>[' + entry.level + '] ' + escapeHtml(entry.msg);
+  div.innerHTML = '<span class="log-time">' + entry.time.slice(11,19) + '</span>' + escapeHtml(entry.msg);
   logsEl.appendChild(div);
   logsEl.scrollTop = logsEl.scrollHeight;
 };
@@ -102,13 +132,16 @@ async function updateStatus() {
   try {
     const r = await fetch("/api/status");
     const data = await r.json();
-    statusEl.textContent = data.status === "connected" ? "Conectado" : data.status === "disconnected" ? "Desconectado" : "Conectando...";
-    statusEl.className = data.status === "connected" ? "online" : data.status === "disconnected" ? "offline" : "iniciando";
+    const s = data.status;
+    const labels = { connected:"Conectado", disconnected:"Desconectado", reconnecting:"Reconectando", authenticated:"Autenticado", qr:"QR Pronto", iniciando:"Iniciando..." };
+    statusEl.textContent = labels[s] || s;
+    statusEl.className = s === "connected" ? "connected" : s === "disconnected" ? "disconnected" : s === "reconnecting" ? "reconnecting" : s === "authenticated" ? "authenticated" : s === "qr" ? "qr" : "iniciando";
     if (data.qr) {
-      qrEl.style.display = "block";
-      qrEl.innerHTML = '<img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' + encodeURIComponent(data.qr) + '" alt="QR Code">';
+      qrBox.className = "visible";
+      qrImg.src = "https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=" + encodeURIComponent(data.qr);
     } else {
-      qrEl.style.display = "none";
+      qrBox.className = "";
+      qrImg.src = "";
     }
   } catch {}
 }
