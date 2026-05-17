@@ -35,7 +35,12 @@ export function createClient(onMessage, dash = {}) {
       puppeteer: {
         headless: true,
         executablePath: process.env.CHROMIUM_PATH || undefined,
-        args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
+        args: [
+          "--no-sandbox", "--disable-setuid-sandbox",
+          "--disable-dev-shm-usage", "--disable-gpu",
+          "--no-zygote", "--single-process",
+          "--no-first-run", "--disable-accelerated-2d-canvas",
+        ],
       },
     });
     currentClient = c;
