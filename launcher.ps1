@@ -67,15 +67,9 @@ function Get-RemoteVersion {
 }
 
 function Compare-Versions($v1, $v2) {
-  $parts1 = $v1.Split('.')
-  $parts2 = $v2.Split('.')
-  for ($i = 0; $i -lt 3; $i++) {
-    $n1 = [int]($parts1[$i] -replace '[^0-9]', 0)
-    $n2 = [int]($parts2[$i] -replace '[^0-9]', 0)
-    if ($n1 -lt $n2) { return $true }
-    if ($n1 -gt $n2) { return $false }
-  }
-  return $false
+  $n1 = [int](($v1 -replace '[^0-9.]', '').Split('.')[0])
+  $n2 = [int](($v2 -replace '[^0-9.]', '').Split('.')[0])
+  return $n1 -lt $n2
 }
 
 function Update-Application($remote) {
@@ -90,11 +84,11 @@ function Update-Application($remote) {
     Invoke-WebRequest -Uri $remote.downloadUrl -OutFile $zipFile -ErrorAction Stop
     Expand-Archive -LiteralPath $zipFile -DestinationPath $tempDir -Force
 
-    $extracted = Get-ChildItem -LiteralPath $tempDir -Directory | Select-Object -First 1
-    if (-not $extracted) { throw "Pasta extraída não encontrada" }
+    $srcDir = Get-ChildItem -LiteralPath $tempDir -Directory | Select-Object -First 1
+    if (-not $srcDir) { $srcDir = $tempDir }
 
     $currentExe = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
-    $newExe = Join-Path $extracted.FullName "launcher.exe"
+    $newExe = Join-Path $srcDir.FullName "launcher.exe"
     $newExePath = Join-Path $ScriptDir "launcher.exe.new"
     if (Test-Path -LiteralPath $newExe) {
       [System.IO.File]::Copy($newExe, $newExePath, $true) | Out-Null
@@ -103,11 +97,15 @@ function Update-Application($remote) {
     $batchContent = @"
 @echo off
 title Aplicando atualizacao...
-set "SRC=$($extracted.FullName)"
+set "SRC=$($srcDir.FullName)"
 set "DST=$ScriptDir"
-xcopy "%SRC%" "%DST%" /E /I /Y >NUL
+
 if exist "%DST%\node_modules" rmdir /S /Q "%DST%\node_modules" >NUL 2>NUL
-exit
+if exist "%DST%\temp" rmdir /S /Q "%DST%\temp" >NUL 2>NUL
+if exist "%DST%\session" rmdir /S /Q "%DST%\session" >NUL 2>NUL
+
+robocopy "%SRC%" "%DST%" /E /IS /IT /NDL /NFL /NJH /NJS >NUL 2>NUL
+exit /b 0
 "@
     $batchFile = Join-Path $env:TEMP "_apply_update.bat"
     $batchContent | Set-Content -LiteralPath $batchFile -Encoding ASCII
