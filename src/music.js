@@ -45,7 +45,7 @@ function spawnYt(args, timeout) {
 
 export async function searchMusic(query) {
   await ensureYtDlp();
-  const json = await spawnYt(["ytsearch10:" + query, "--dump-json", "--no-check-certificates", "--no-warnings", "--no-playlist", "--extractor-retries", "3", "--extractor-args", "youtube:player_client=android_embedded"], 30000);
+  const json = await spawnYt(["ytsearch10:" + query, "--dump-json", "--no-check-certificates", "--no-warnings", "--no-playlist", "--extractor-retries", "3", "--extractor-args", "youtube:player_client=tv_embedded;player_skip=webpage"], 30000);
   const results = [];
   for (const line of json.split("\n").filter(l => l.trim())) {
     try {
@@ -68,7 +68,7 @@ export async function downloadAudio(videoUrl) {
     "--prefer-free-formats", "--no-check-certificates", "--no-warnings",
     "--extractor-retries", "5",
     "--add-header", "User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-    "--extractor-args", "youtube:player_client=android_embedded",
+    "--extractor-args", "youtube:player_client=tv_embedded;player_skip=webpage",
   ];
   if (ffmpegDir) args.push("--extract-audio", "--audio-format", "mp3", "--ffmpeg-location", ffmpegDir);
 
@@ -102,7 +102,7 @@ export async function downloadVideo(videoUrl) {
     "--no-check-certificates", "--no-warnings",
     "--extractor-retries", "5",
     "--add-header", "User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-    "--extractor-args", "youtube:player_client=android_embedded",
+    "--extractor-args", "youtube:player_client=tv_embedded;player_skip=webpage",
   ];
   if (ffmpegDir) args.push("--ffmpeg-location", ffmpegDir);
 
