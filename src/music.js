@@ -90,12 +90,30 @@ export async function downloadAudio(videoUrl) {
   });
 }
 
+function compressVideo(filePath) {
+  return new Promise((resolve, reject) => {
+    const ext = path.extname(filePath);
+    const out = path.join(cacheDir, "compressed_" + path.basename(filePath).replace(ext, ".mp4"));
+    const ff = ffmpegDir ? path.join(ffmpegDir, process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg") : "ffmpeg";
+    const args = ["-i", filePath, "-vcodec", "libx264", "-crf", "30", "-preset", "fast", "-acodec", "aac", "-b:a", "64k", "-y", out];
+    const p = spawn(ff, args, { timeout: 300000 });
+    let err = "";
+    p.stderr.on("data", (d) => { err += d.toString(); });
+    p.on("close", (c) => {
+      if (c !== 0) return reject(new Error("Compressão falhou"));
+      try { fs.unlinkSync(filePath); } catch {}
+      resolve(out);
+    });
+    p.on("error", (e) => reject(e));
+  });
+}
+
 export async function downloadVideo(videoUrl) {
   await ensureYtDlp();
   try { for (const f of fs.readdirSync(cacheDir)) { if (f.startsWith("video_")) { try { fs.unlinkSync(path.join(cacheDir, f)); } catch {} } } } catch {}
   const out = path.join(cacheDir, "video_%(id)s.%(ext)s");
   const args = [
-    videoUrl, "-f", "best[height<=480][filesize<30M]/bestvideo[height<=480][filesize<30M]+bestaudio/best[height<=240]",
+    videoUrl, "-f", "best[height<=720][filesize<100M]/bestvideo[height<=720][filesize<100M]+bestaudio/best[height<=480]",
     "--merge-output-format", "mp4",
     "--output", out, "--no-part", "--no-mtime",
     "--no-check-certificates", "--no-warnings",
@@ -104,7 +122,7 @@ export async function downloadVideo(videoUrl) {
   ];
   if (ffmpegDir) args.push("--ffmpeg-location", ffmpegDir);
 
-  return new Promise((resolve, reject) => {
+  const filePath = await new Promise((resolve, reject) => {
     let err = "";
     const p = spawn(ytDlp, args, { timeout: 600000 });
 
@@ -121,6 +139,11 @@ export async function downloadVideo(videoUrl) {
     });
     p.on("error", (e) => reject(new Error(String(e && e.message ? e.message : e))));
   });
+
+  if (fs.statSync(filePath).size > 45 * 1024 * 1024 && ffmpegDir) {
+    return await compressVideo(filePath);
+  }
+  return filePath;
 }
 
 export function cleanCache() {
