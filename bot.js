@@ -99,13 +99,16 @@ async function handleMusic(client, msg, query) {
         return;
       }
     } catch (e) {
+      const errMsg = (e && e.message ? e.message : String(e)).slice(0, 200);
       try { fs.appendFileSync("log.txt", `[${new Date().toISOString()}] ${videos[0].title}: ${e.stack || e}\n`); } catch {}
+      return await msg.reply(`❌ Download: ${errMsg}`);
     }
 
-    await msg.reply(`❌ Não consegui enviar o áudio. Link: ${videos[0].url}`);
+    await msg.reply(`❌ Áudio vazio. Link: ${videos[0].url}`);
   } catch (err) {
+    const errMsg = (err && err.message ? err.message : String(err)).slice(0, 200);
     try { fs.appendFileSync("log.txt", `[${new Date().toISOString()}] ${err.stack || err}\n`); } catch {}
-    try { await msg.reply(`❌ Erro. Detalhes salvos em log.txt`); } catch {}
+    try { await msg.reply(`❌ Erro: ${errMsg}`); } catch {}
   }
 }
 
@@ -121,22 +124,24 @@ async function handleVideo(client, msg, query) {
     try {
       fp = await downloadVideo(videos[0].url);
     } catch (e) {
+      const errMsg = (e && e.message ? e.message : String(e)).slice(0, 200);
       try { fs.appendFileSync("log.txt", `[${new Date().toISOString()}] video download: ${e.stack || e}\n`); } catch {}
-      return await msg.reply(`❌ Erro no download. Link: ${videos[0].url}`);
+      return await msg.reply(`❌ Download: ${errMsg}. Link: ${videos[0].url}`);
     }
-    if (!fs.existsSync(fp) || fs.statSync(fp).size <= 1000)
+    if (!fp || !fs.existsSync(fp) || fs.statSync(fp).size <= 1000)
       return await msg.reply(`❌ Vídeo vazio. Link: ${videos[0].url}`);
 
     try {
       await sendVideo(client, msg.from, fp, videos[0].title);
+      try { fs.unlinkSync(fp); } catch {}
     } catch {
       await msg.reply(`❌ Muito grande pra enviar. Link: ${videos[0].url}`);
+      try { fs.unlinkSync(fp); } catch {}
     }
-
-    try { fs.unlinkSync(fp); } catch {}
   } catch (err) {
+    const errMsg = (err && err.message ? err.message : String(err)).slice(0, 200);
     try { fs.appendFileSync("log.txt", `[${new Date().toISOString()}] ${err.stack || err}\n`); } catch {}
-    try { await msg.reply(`❌ Erro. Detalhes salvos em log.txt`); } catch {}
+    try { await msg.reply(`❌ Erro: ${errMsg}`); } catch {}
   }
 }
 

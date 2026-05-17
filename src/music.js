@@ -87,9 +87,10 @@ export async function downloadAudio(videoUrl) {
 
 export async function downloadVideo(videoUrl) {
   await ensureYtDlp();
+  try { for (const f of fs.readdirSync(cacheDir)) { if (f.startsWith("video_")) { try { fs.unlinkSync(path.join(cacheDir, f)); } catch {} } } } catch {}
   const out = path.join(cacheDir, "video_%(id)s.%(ext)s");
   const args = [
-    videoUrl, "-f", "best[height<=360][filesize<50M]/bestvideo[height<=360]+bestaudio/best[height<=360]",
+    videoUrl, "-f", "best[height<=480][filesize<30M]/bestvideo[height<=480][filesize<30M]+bestaudio/best[height<=240]",
     "--merge-output-format", "mp4",
     "--output", out, "--no-part", "--no-mtime",
     "--no-check-certificates", "--no-warnings",
@@ -98,7 +99,7 @@ export async function downloadVideo(videoUrl) {
 
   return new Promise((resolve, reject) => {
     let err = "";
-    const p = spawn(ytDlp, args, { timeout: 300000 });
+    const p = spawn(ytDlp, args, { timeout: 600000 });
 
     p.stderr.on("data", (d) => { err += d.toString(); });
     p.on("close", (c) => {
