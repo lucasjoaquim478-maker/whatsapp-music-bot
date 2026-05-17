@@ -55,7 +55,14 @@ const HELP = `🎵 *Comandos do Bot*
 
 💡 Adicione "${IGNORE}" no final para eu ignorar.`;
 
+function checkFileSize(filePath) {
+  const size = fs.statSync(filePath).size;
+  if (size > 45 * 1024 * 1024) throw new Error(`Arquivo muito grande (${(size / 1024 / 1024).toFixed(1)}MB). Máx: 45MB.`);
+  if (size > 20 * 1024 * 1024) console.error("⚠️ Arquivo grande:", (size / 1024 / 1024).toFixed(1), "MB — pode falhar no WhatsApp");
+}
+
 async function sendAudio(client, to, filePath, title) {
+  checkFileSize(filePath);
   const ext = path.extname(filePath).toLowerCase();
   const mimeMap = { ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".webm": "audio/webm", ".opus": "audio/ogg", ".wav": "audio/wav" };
   const mimetype = mimeMap[ext] || "audio/mpeg";
@@ -65,6 +72,7 @@ async function sendAudio(client, to, filePath, title) {
 }
 
 async function sendVideo(client, to, filePath, title) {
+  checkFileSize(filePath);
   const base64 = fs.readFileSync(filePath).toString("base64");
   const media = new MessageMedia("video/mp4", base64, path.basename(filePath));
   await client.sendMessage(to, media, { caption: `🎬 ${title}` });
@@ -124,7 +132,7 @@ async function handleMusic(client, msg, query) {
 
     let lastErr = "";
     for (let i = 0; i < videos.length; i++) {
-      await msg.reply(`🎵 (${i + 1}/${videos.length}) ${videos[i].title}\n📥 Baixando...`);
+      try { await msg.reply(`🎵 (${i + 1}/${videos.length}) ${videos[i].title}\n📥 Baixando...`); } catch { continue; }
 
       let fp = null;
       try {
@@ -142,7 +150,7 @@ async function handleMusic(client, msg, query) {
       }
     }
 
-    await msg.reply(`❌ Nenhum áudio disponível. ${lastErr ? `Último erro: ${lastErr}` : ""}`);
+    try { await msg.reply(`❌ Nenhum áudio disponível. ${lastErr ? `Último erro: ${lastErr}` : ""}`); } catch {}
   } catch (err) {
     const errMsg = (err && err.message ? err.message : String(err)).slice(0, 200);
     try { fs.appendFileSync("log.txt", `[${new Date().toISOString()}] ${err.stack || err}\n`); } catch {}
@@ -158,7 +166,7 @@ async function handleVideo(client, msg, query) {
 
     let lastErr = "";
     for (let i = 0; i < videos.length; i++) {
-      await msg.reply(`🎬 (${i + 1}/${videos.length}) ${videos[i].title}\n📥 Baixando...`);
+      try { await msg.reply(`🎬 (${i + 1}/${videos.length}) ${videos[i].title}\n📥 Baixando...`); } catch { continue; }
 
       let fp = null;
       try {
@@ -181,7 +189,7 @@ async function handleVideo(client, msg, query) {
       }
     }
 
-    await msg.reply(`❌ Nenhum vídeo disponível. ${lastErr ? `Último erro: ${lastErr}` : ""}`);
+    try { await msg.reply(`❌ Nenhum vídeo disponível. ${lastErr ? `Último erro: ${lastErr}` : ""}`); } catch {}
   } catch (err) {
     const errMsg = (err && err.message ? err.message : String(err)).slice(0, 200);
     try { fs.appendFileSync("log.txt", `[${new Date().toISOString()}] ${err.stack || err}\n`); } catch {}
@@ -302,7 +310,7 @@ const handler = async (client, msg, text) => {
 process.on("uncaughtException", (err) => {
   try { fs.appendFileSync("log.txt", `[${new Date().toISOString()}] FATAL: ${err.stack}\n`); } catch {}
   try { emitLog("ERROR", "FATAL: " + err.message); } catch {}
-  process.exit(1);
+  console.error("ERRO FATAL (recuperavel):", err.message);
 });
 
 process.on("unhandledRejection", (reason) => {

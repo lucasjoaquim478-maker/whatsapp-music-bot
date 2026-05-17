@@ -60,6 +60,7 @@ export async function searchMusic(query) {
 
 export async function downloadAudio(videoUrl) {
   await ensureYtDlp();
+  try { for (const f of fs.readdirSync(cacheDir)) { if (f.startsWith("audio_")) { try { fs.unlinkSync(path.join(cacheDir, f)); } catch {} } } } catch {}
   const ext = ffmpegDir ? "mp3" : "%(ext)s";
   const out = path.join(cacheDir, `audio_%(id)s.${ext}`);
   const args = [
