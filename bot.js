@@ -11,15 +11,16 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const IGNORE = "🤖";
 const IGNORED = ["558496321255@c.us", "558498321255@c.us"];
 
-let opencodeKey = "", groqKey = "", geminiKey = "";
-let dashPort = parseInt(process.env.PORT) || 3000;
+let opencodeKey = process.env.OPENCODE_KEY || "";
+let groqKey = process.env.GROQ_KEY || "";
+let geminiKey = process.env.GEMINI_KEY || "";
+let dashPort = parseInt(process.env.PORT || process.env.DASH_PORT) || 3000;
 try {
   const cfg = JSON.parse(fs.readFileSync(path.join(__dirname, "config.json"), "utf8"));
-  opencodeKey = process.env.OPENCODE_KEY || cfg.opencodeKey || "";
-  groqKey = process.env.GROQ_KEY || cfg.groqKey || "";
-  geminiKey = process.env.GEMINI_KEY || cfg.geminiKey || "";
-  if (process.env.DASH_PORT) dashPort = parseInt(process.env.DASH_PORT);
-  else if (cfg.dashboardPort) dashPort = cfg.dashboardPort;
+  if (!opencodeKey) opencodeKey = cfg.opencodeKey || "";
+  if (!groqKey) groqKey = cfg.groqKey || "";
+  if (!geminiKey) geminiKey = cfg.geminiKey || "";
+  if (!process.env.DASH_PORT && !process.env.PORT && cfg.dashboardPort) dashPort = cfg.dashboardPort;
 } catch (e) { console.error("config.json inválido ou não encontrado:", e.message); }
 
 const origLog = console.log;
