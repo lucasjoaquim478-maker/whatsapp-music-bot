@@ -127,7 +127,7 @@ export function cleanCache() {
   try {
     for (const f of fs.readdirSync(cacheDir)) {
       const full = path.join(cacheDir, f);
-      if (f !== "yt-dlp.exe" && fs.statSync(full).isFile()) fs.unlinkSync(full);
+      if (f !== ytDlpBin && fs.statSync(full).isFile()) fs.unlinkSync(full);
     }
   } catch {}
 }
