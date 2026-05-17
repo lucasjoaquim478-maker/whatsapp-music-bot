@@ -202,15 +202,21 @@ try {
 
   try {
     Set-Location -LiteralPath $ScriptDir
-    cmd /c "chcp 65001 >NUL && node index.js" 2>&1 | ForEach-Object { Write-Host $_ }
-    if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne $null) {
-      Write-Color "⚠️  Node encerrou com código: $LASTEXITCODE" Yellow
+    $botRunning = $true
+    while ($botRunning) {
+      cmd /c "chcp 65001 >NUL && node index.js" 2>&1 | ForEach-Object { Write-Host $_ }
+      $exitCode = $LASTEXITCODE
+      if ($exitCode -eq 0) {
+        $botRunning = $false
+        Write-Color "`n✅ Bot encerrado normalmente." DarkGray
+      } else {
+        Write-Color "`n🔄 Bot reiniciando (código: $exitCode)..." Yellow
+        Start-Sleep -Seconds 3
+      }
     }
   } catch {
     Write-Color "❌ Erro ao iniciar: $_" Red
   }
-
-  Write-Color "`n❌ Bot encerrado." DarkGray
 } catch {
   Write-Color "`n❌ Erro inesperado: $_" Red
 } finally {
