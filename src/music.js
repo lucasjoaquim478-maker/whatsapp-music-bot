@@ -146,6 +146,20 @@ export async function downloadVideo(videoUrl) {
   return filePath;
 }
 
+export async function fetchPlaylist(url, limit = 5) {
+  await ensureYtDlp();
+  const json = await spawnYt([url, "--flat-playlist", "--dump-json", "--no-check-certificates", "--no-warnings", "--no-playlist", "--extractor-retries", "3", "--force-ipv4"], 30000);
+  const results = [];
+  for (const line of json.split("\n").filter(l => l.trim())) {
+    try {
+      const d = JSON.parse(line);
+      if (d && d.id && results.length < limit)
+        results.push({ title: d.title || "", url: `https://youtube.com/watch?v=${d.id}`, duration: d.duration || 0 });
+    } catch {}
+  }
+  return results;
+}
+
 export function cleanCache() {
   try {
     for (const f of fs.readdirSync(cacheDir)) {

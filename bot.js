@@ -1,15 +1,19 @@
 import { createClient } from "./src/client.js";
-import { searchMusic, downloadAudio, downloadVideo, cleanCache } from "./src/music.js";
+import { searchMusic, downloadAudio, downloadVideo, fetchPlaylist, cleanCache } from "./src/music.js";
 import { startDashboard, emitLog, setStatus, setQR } from "./src/dashboard.js";
 import pkg from "whatsapp-web.js";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { createRequire as _creq } from "module";
 
+const _req = _creq(import.meta.url);
+const botVersion = _req("./package.json").version;
 const { MessageMedia } = pkg;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const IGNORE = "🤖";
 const IGNORED = ["558496321255@c.us", "558498321255@c.us"];
+const startTime = Date.now();
 
 let opencodeKey = process.env.OPENCODE_KEY || "";
 let groqKey = process.env.GROQ_KEY || "";
@@ -29,10 +33,14 @@ console.log = (...args) => { origLog(...args); emitLog("INFO", args.join(" ")); 
 console.error = (...args) => { origErr(...args); emitLog("ERROR", args.join(" ")); };
 
 const HELP = `🎵 *Comandos*
-!play <música>    —  Baixa música em MP3
-!video <nome>      —  Baixa vídeo em MP4
-!ask <pergunta>    —  Responde com IA
-!help              —  Mostra comandos
+!play <música>       —  Baixa música em MP3
+!video <nome>         —  Baixa vídeo em MP4
+!playlist <url>       —  Baixa músicas de uma playlist
+!ask <pergunta>       —  Responde com IA
+!ping                 —  Testa se o bot está online
+!cache / !limpar      —  Limpa cache
+!info / !status       —  Info do bot
+!help                 —  Mostra comandos
 
 Adicione "${IGNORE}" no final para o bot ignorar o comando.`;
 
@@ -198,6 +206,46 @@ const handler = async (client, msg, text) => {
     const answer = await askAI(q);
     await msg.reply(answer);
     return;
+  }
+
+  // !ping
+  if (t === "!ping") {
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
+    return await msg.reply(`🏓 Pong! Online há ${elapsed}s`);
+  }
+
+  // !cache / !limpar
+  if (t === "!cache" || t === "!limpar") {
+    cleanCache();
+    return await msg.reply("🗑️ Cache limpo!");
+  }
+
+  // !playlist <url>
+  if (t.startsWith("!playlist ")) {
+    const url = text.slice(10).trim();
+    if (!url || !url.includes("youtube.com/playlist")) return await msg.reply("❌ Manda uma URL de playlist do YouTube");
+    await msg.reply("📋 Obtendo playlist...");
+    const items = await fetchPlaylist(url, 5);
+    if (!items.length) return await msg.reply("❌ Playlist vazia ou inválida.");
+    let ok = 0;
+    for (const item of items) {
+      await msg.reply(`📥 (${ok + 1}/${items.length}) ${item.title}`);
+      try {
+        const fp = await downloadAudio(item.url);
+        if (fp && fs.existsSync(fp) && fs.statSync(fp).size > 1000) {
+          await sendAudio(client, msg.from, fp, item.title);
+          try { fs.unlinkSync(fp); } catch {}
+          ok++;
+        }
+      } catch {}
+    }
+    return await msg.reply(`✅ ${ok}/${items.length} músicas enviadas!`);
+  }
+
+  // !info / !status
+  if (t === "!info" || t === "!status") {
+    const uptime = ((Date.now() - startTime) / 1000).toFixed(0);
+    return await msg.reply(`🤖 *WhatsApp Bot*\n📌 Versão: v${botVersion}\n⏱️ Online: ${uptime}s`);
   }
 };
 
