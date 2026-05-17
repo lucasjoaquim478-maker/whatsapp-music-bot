@@ -105,7 +105,7 @@ async function handleMusic(client, msg, query) {
     await msg.reply(`❌ Não consegui enviar o áudio. Link: ${videos[0].url}`);
   } catch (err) {
     try { fs.appendFileSync("log.txt", `[${new Date().toISOString()}] ${err.stack || err}\n`); } catch {}
-    await msg.reply(`❌ Erro. Detalhes salvos em log.txt`);
+    try { await msg.reply(`❌ Erro. Detalhes salvos em log.txt`); } catch {}
   }
 }
 
@@ -136,7 +136,7 @@ async function handleVideo(client, msg, query) {
     try { fs.unlinkSync(fp); } catch {}
   } catch (err) {
     try { fs.appendFileSync("log.txt", `[${new Date().toISOString()}] ${err.stack || err}\n`); } catch {}
-    await msg.reply(`❌ Erro. Detalhes salvos em log.txt`);
+    try { await msg.reply(`❌ Erro. Detalhes salvos em log.txt`); } catch {}
   }
 }
 
@@ -166,9 +166,10 @@ const handler = async (client, msg, text) => {
     }
   }
 
-  // !video <query>
-  if (t.startsWith("!video ")) {
-    const q = text.slice(7).trim();
+  // !video <query> / !vídeo <query>
+  if (t.startsWith("!video ") || t.startsWith("!vídeo ")) {
+    const prefixLen = t.startsWith("!video ") ? 7 : 8;
+    const q = text.slice(prefixLen).trim();
     if (!q) return;
     return await handleVideo(client, msg, q);
   }
