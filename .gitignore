@@ -9,3 +9,4 @@ auth-data/
 .wwebjs_cache/
 dist/
 temp/
+log.txt

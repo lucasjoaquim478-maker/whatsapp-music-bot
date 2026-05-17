@@ -31,4 +31,7 @@ if (!checkModules()) {
   console.log("✅ Dependências instaladas!");
 }
 
-import("./bot.js");
+import("./bot.js").catch(err => {
+  console.error("Falha ao carregar bot.js:", err);
+  process.exit(1);
+});

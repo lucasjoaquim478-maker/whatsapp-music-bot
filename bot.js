@@ -32,17 +32,28 @@ const origErr = console.error;
 console.log = (...args) => { origLog(...args); emitLog("INFO", args.join(" ")); };
 console.error = (...args) => { origErr(...args); emitLog("ERROR", args.join(" ")); };
 
-const HELP = `🎵 *Comandos*
-!play <música>       —  Baixa música em MP3
-!video <nome>         —  Baixa vídeo em MP4
-!playlist <url>       —  Baixa músicas de uma playlist
-!ask <pergunta>       —  Responde com IA
-!ping                 —  Testa se o bot está online
-!cache / !limpar      —  Limpa cache
-!info / !status       —  Info do bot
-!help                 —  Mostra comandos
+const HELP = `🎵 *Comandos do Bot*
 
-Adicione "${IGNORE}" no final para o bot ignorar o comando.`;
+🎧 *Música*
+!play <música>       — MP3
+!video <nome>         — MP4 (720p, comprime se >45MB)
+!playlist <url>       — Baixa playlist (até 5)
+
+🤖 *Inteligência Artificial*
+!ask <pergunta>       — Pergunta à IA (Groq)
+!traduzir <texto>     — Traduz texto para português
+
+🛠️ *Utilitários*
+!ping                 — Testa conexão
+!id                   — Mostra ID do chat
+!eco <texto>          — Repete mensagem
+!cache / !limpar      — Limpa cache
+
+ℹ️ *Informação*
+!info / !status       — Versão e uptime
+!help                 — Esta mensagem
+
+💡 Adicione "${IGNORE}" no final para eu ignorar.`;
 
 async function sendAudio(client, to, filePath, title) {
   const ext = path.extname(filePath).toLowerCase();
@@ -59,35 +70,48 @@ async function sendVideo(client, to, filePath, title) {
   await client.sendMessage(to, media, { caption: `🎬 ${title}` });
 }
 
+async function fetchWithTimeout(url, opts, ms = 30000) {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), ms);
+  try { return await fetch(url, { ...opts, signal: ac.signal }); }
+  finally { clearTimeout(timer); }
+}
+
 async function askAI(question) {
   if (groqKey) {
-    const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: "Bearer " + groqKey },
-      body: JSON.stringify({ model: "llama-3.1-8b-instant", messages: [{ role: "user", content: question }] }),
-    });
-    if (r.ok) { const d = await r.json(); return d?.choices?.[0]?.message?.content || "❌ Sem resposta."; }
-    const errBody = await r.text().catch(() => "");
-    return `❌ Erro Groq: ${r.status} ${errBody.slice(0, 200)}`;
+    try {
+      const r = await fetchWithTimeout("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + groqKey },
+        body: JSON.stringify({ model: "llama-3.1-8b-instant", messages: [{ role: "user", content: question }] }),
+      });
+      if (r.ok) { const d = await r.json(); return d?.choices?.[0]?.message?.content || "❌ Sem resposta."; }
+      const errBody = await r.text().catch(() => "");
+      return `❌ Erro Groq: ${r.status} ${errBody.slice(0, 200)}`;
+    } catch (e) { return `❌ Groq: ${e?.message || e}`; }
   }
   if (opencodeKey) {
-    const r = await fetch("https://opencode.ai/zen/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: "Bearer " + opencodeKey },
-      body: JSON.stringify({ model: "gpt-5-nano", messages: [{ role: "user", content: question }], max_tokens: 256 }),
-    });
-    if (r.ok) { const d = await r.json(); return d?.choices?.[0]?.message?.content || "❌ Sem resposta."; }
-    const errBody = await r.text().catch(() => "");
-    return `❌ Erro OpenCode: ${r.status} ${errBody.slice(0, 200)}`;
+    try {
+      const r = await fetchWithTimeout("https://opencode.ai/zen/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + opencodeKey },
+        body: JSON.stringify({ model: "gpt-5-nano", messages: [{ role: "user", content: question }], max_tokens: 256 }),
+      });
+      if (r.ok) { const d = await r.json(); return d?.choices?.[0]?.message?.content || "❌ Sem resposta."; }
+      const errBody = await r.text().catch(() => "");
+      return `❌ Erro OpenCode: ${r.status} ${errBody.slice(0, 200)}`;
+    } catch (e) { return `❌ OpenCode: ${e?.message || e}`; }
   }
   if (geminiKey) {
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contents: [{ parts: [{ text: question }] }] }),
-    });
-    if (r.ok) { const d = await r.json(); return d?.candidates?.[0]?.content?.parts?.[0]?.text || "❌ Sem resposta."; }
-    const errBody = await r.text().catch(() => "");
-    return `❌ Erro Gemini: ${r.status} ${errBody.slice(0, 200)}`;
+    try {
+      const r = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contents: [{ parts: [{ text: question }] }] }),
+      });
+      if (r.ok) { const d = await r.json(); return d?.candidates?.[0]?.content?.parts?.[0]?.text || "❌ Sem resposta."; }
+      const errBody = await r.text().catch(() => "");
+      return `❌ Erro Gemini: ${r.status} ${errBody.slice(0, 200)}`;
+    } catch (e) { return `❌ Gemini: ${e?.message || e}`; }
   }
   return "❌ Nenhuma API key configurada (coloca opencodeKey, groqKey ou geminiKey no config.json).";
 }
@@ -102,8 +126,9 @@ async function handleMusic(client, msg, query) {
     for (let i = 0; i < videos.length; i++) {
       await msg.reply(`🎵 (${i + 1}/${videos.length}) ${videos[i].title}\n📥 Baixando...`);
 
+      let fp = null;
       try {
-        const fp = await downloadAudio(videos[i].url);
+        fp = await downloadAudio(videos[i].url);
         if (fp && fs.existsSync(fp) && fs.statSync(fp).size > 1000) {
           await sendAudio(client, msg.from, fp, videos[i].title);
           try { fs.unlinkSync(fp); } catch {}
@@ -111,6 +136,7 @@ async function handleMusic(client, msg, query) {
         }
       } catch (e) {
         lastErr = (e && e.message ? e.message : String(e)).slice(0, 200);
+        try { if (fp) fs.unlinkSync(fp); } catch {}
         try { fs.appendFileSync("log.txt", `[${new Date().toISOString()}] tentativa ${i + 1} falhou: ${videos[i].url}: ${e.stack || e}\n`); } catch {}
         continue;
       }
@@ -148,9 +174,9 @@ async function handleVideo(client, msg, query) {
         await sendVideo(client, msg.from, fp, videos[i].title);
         try { fs.unlinkSync(fp); } catch {}
         return;
-      } catch {
+      } catch (e) {
         try { fs.unlinkSync(fp); } catch {}
-        lastErr = "Vídeo muito grande para enviar";
+        lastErr = (e && e.message ? e.message : String(e)).slice(0, 200);
         continue;
       }
     }
@@ -202,9 +228,9 @@ const handler = async (client, msg, text) => {
     const prefixLen = t.startsWith("!ask ") ? 5 : 10;
     const q = text.slice(prefixLen).trim();
     if (!q) return;
-    await msg.reply("💭 Pensando...");
+    try { await msg.reply("💭 Pensando..."); } catch {}
     const answer = await askAI(q);
-    await msg.reply(answer);
+    try { await msg.reply(answer); } catch {}
     return;
   }
 
@@ -237,7 +263,9 @@ const handler = async (client, msg, text) => {
           try { fs.unlinkSync(fp); } catch {}
           ok++;
         }
-      } catch {}
+      } catch (e) {
+        try { fs.appendFileSync("log.txt", `[${new Date().toISOString()}] playlist item falhou: ${item.url}: ${e?.message || e}\n`); } catch {}
+      }
     }
     return await msg.reply(`✅ ${ok}/${items.length} músicas enviadas!`);
   }
@@ -247,10 +275,39 @@ const handler = async (client, msg, text) => {
     const uptime = ((Date.now() - startTime) / 1000).toFixed(0);
     return await msg.reply(`🤖 *WhatsApp Bot*\n📌 Versão: v${botVersion}\n⏱️ Online: ${uptime}s`);
   }
+
+  // !id
+  if (t === "!id") {
+    const chat = await msg.getChat();
+    return await msg.reply(`🆔 *ID do Chat*\n\nID: \`${msg.from}\`\nNome: ${chat.name || "—"}\nGrupo: ${chat.isGroup ? "Sim" : "Não"}${chat.isGroup ? `\nParticipantes: ${chat.participants?.length || "?"}` : ""}`);
+  }
+
+  // !eco <texto>
+  if (t.startsWith("!eco ")) {
+    const eco = text.slice(5).trim();
+    if (!eco) return;
+    return await msg.reply(`🔁 ${eco}`);
+  }
+
+  // !traduzir <texto>
+  if (t.startsWith("!traduzir ")) {
+    const txt = text.slice(10).trim();
+    if (!txt) return;
+    await msg.reply("🌐 Traduzindo...");
+    const answer = await askAI(`Traduza para português brasileiro: "${txt}". Responda apenas a tradução, sem explicações.`);
+    return await msg.reply(`🌐 *Tradução:* ${answer}`);
+  }
 };
 
 process.on("uncaughtException", (err) => {
   try { fs.appendFileSync("log.txt", `[${new Date().toISOString()}] FATAL: ${err.stack}\n`); } catch {}
+  try { emitLog("ERROR", "FATAL: " + err.message); } catch {}
+  process.exit(1);
+});
+
+process.on("unhandledRejection", (reason) => {
+  try { fs.appendFileSync("log.txt", `[${new Date().toISOString()}] UNHANDLED: ${reason}\n`); } catch {}
+  try { emitLog("ERROR", "UNHANDLED: " + (reason?.message || reason)); } catch {}
 });
 
 process.on("SIGINT", () => { cleanCache(); process.exit(); });

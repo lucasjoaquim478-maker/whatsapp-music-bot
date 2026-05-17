@@ -8,6 +8,8 @@ export function createClient(onMessage, dash = {}) {
   let currentClient = null;
   let readyPromise = Promise.resolve();
   let markReady = null;
+  let connecting = false;
+  let retries = 0;
 
   function blockUntilReady() {
     readyPromise = new Promise(r => { markReady = r; });
@@ -16,17 +18,26 @@ export function createClient(onMessage, dash = {}) {
   function releaseReady() {
     if (markReady) markReady();
     markReady = null;
+    connecting = false;
   }
 
-  function cleanup() {
+  async function cleanup() {
     if (currentClient) {
       try { currentClient.removeAllListeners(); } catch {}
-      try { currentClient.destroy(); } catch {}
+      try { await currentClient.destroy(); } catch {}
       currentClient = null;
     }
   }
 
+  function scheduleReconnect(delay) {
+    setTimeout(() => {
+      if (!connecting) buildClient();
+    }, delay);
+  }
+
   function buildClient() {
+    if (connecting) return;
+    connecting = true;
     blockUntilReady();
     if (setStatus) setStatus("reconnecting");
 
@@ -50,25 +61,30 @@ export function createClient(onMessage, dash = {}) {
       qrcode.generate(qr, { small: true });
       if (setQR) setQR(qr);
       if (setStatus) setStatus("qr");
+      retries = 0;
     });
 
     c.on("authenticated", () => {
       console.log("Autenticado!");
       if (setStatus) setStatus("authenticated");
+      retries = 0;
     });
 
     c.on("ready", () => {
       console.log("WhatsApp conectado!");
       if (setStatus) setStatus("connected");
       if (setQR) setQR(null);
+      retries = 0;
       releaseReady();
     });
 
     c.on("disconnected", async (r) => {
       console.log("Desconectado:", r);
       if (setStatus) setStatus("disconnected");
-      cleanup();
-      setTimeout(buildClient, 5000);
+      await cleanup();
+      const delay = Math.min(5000 * Math.pow(2, retries), 60000);
+      retries++;
+      scheduleReconnect(delay);
     });
 
     c.on("message", async (msg) => {
@@ -78,15 +94,17 @@ export function createClient(onMessage, dash = {}) {
       await readyPromise;
       if (!currentClient) return;
       try { await onMessage(currentClient, msg, text); } catch (e) {
-        console.error("Erro ao processar mensagem:", e.message);
+        console.error("Erro ao processar mensagem:", e?.message || e);
       }
     });
 
     c.initialize().catch(e => {
-      console.error("Erro ao iniciar cliente:", e.message);
+      console.error("Erro ao iniciar cliente:", e?.message || e);
       cleanup();
       releaseReady();
-      setTimeout(buildClient, 10000);
+      const delay = Math.min(10000 * Math.pow(2, retries), 120000);
+      retries++;
+      scheduleReconnect(delay);
     });
   }
 

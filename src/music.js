@@ -148,7 +148,7 @@ export async function downloadVideo(videoUrl) {
 
 export async function fetchPlaylist(url, limit = 5) {
   await ensureYtDlp();
-  const json = await spawnYt([url, "--flat-playlist", "--dump-json", "--no-check-certificates", "--no-warnings", "--no-playlist", "--extractor-retries", "3", "--force-ipv4"], 30000);
+  const json = await spawnYt([url, "--flat-playlist", "--dump-json", "--no-check-certificates", "--no-warnings", "--extractor-retries", "3", "--force-ipv4"], 30000);
   const results = [];
   for (const line of json.split("\n").filter(l => l.trim())) {
     try {

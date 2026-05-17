@@ -33,9 +33,9 @@ export function startDashboard(port = 3000) {
       res.write(`data: ${JSON.stringify(entry)}\n\n`);
     }
     sseClients.push(res);
-    req.on("close", () => {
-      sseClients = sseClients.filter(c => c !== res);
-    });
+    const remove = () => { sseClients = sseClients.filter(c => c !== res); };
+    req.on("close", remove);
+    req.on("error", remove);
   });
 
   app.get("/api/status", (req, res) => {
@@ -150,6 +150,11 @@ updateStatus();
 </script>
 </body>
 </html>`);
+  });
+
+  server.on("error", (err) => {
+    console.error("Dashboard server error:", err.message);
+    emitLog("ERROR", "Dashboard: " + err.message);
   });
 
   server.listen(port, () => {
