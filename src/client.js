@@ -3,7 +3,9 @@ import qrcode from "qrcode-terminal";
 
 const { Client, LocalAuth } = pkg;
 
-export function createClient(onMessage) {
+export function createClient(onMessage, dash = {}) {
+  const { setStatus, setQR } = dash;
+
   const client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: {
@@ -15,11 +17,24 @@ export function createClient(onMessage) {
   client.on("qr", (qr) => {
     console.log("\nEscaneie o QR Code:\n");
     qrcode.generate(qr, { small: true });
+    if (setQR) setQR(qr);
   });
 
-  client.on("authenticated", () => console.log("Autenticado!"));
-  client.on("ready", () => console.log("WhatsApp conectado!"));
-  client.on("disconnected", (r) => console.log("Desconectado:", r));
+  client.on("authenticated", () => {
+    console.log("Autenticado!");
+    if (setStatus) setStatus("authenticated");
+  });
+
+  client.on("ready", () => {
+    console.log("WhatsApp conectado!");
+    if (setStatus) setStatus("connected");
+    if (setQR) setQR(null);
+  });
+
+  client.on("disconnected", (r) => {
+    console.log("Desconectado:", r);
+    if (setStatus) setStatus("disconnected");
+  });
 
   client.on("message", async (msg) => {
     if (msg.fromMe) return;

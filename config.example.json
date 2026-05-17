@@ -1,5 +1,4 @@
 {
-  "opencodeKey": "sua-key-opencode-zen",
   "groqKey": "sua-key-groq",
-  "geminiKey": "sua-key-gemini"
+  "dashboardPort": 3000
 }

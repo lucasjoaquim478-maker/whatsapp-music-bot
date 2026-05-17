@@ -1,5 +1,6 @@
 import { createClient } from "./src/client.js";
 import { searchMusic, downloadAudio, downloadVideo, cleanCache } from "./src/music.js";
+import { startDashboard, emitLog, setStatus, setQR } from "./src/dashboard.js";
 import pkg from "whatsapp-web.js";
 import fs from "fs";
 import path from "path";
@@ -11,12 +12,19 @@ const IGNORE = "🤖";
 const IGNORED = ["558496321255@c.us", "558498321255@c.us"];
 
 let opencodeKey = "", groqKey = "", geminiKey = "";
+let dashPort = 3000;
 try {
   const cfg = JSON.parse(fs.readFileSync(path.join(__dirname, "config.json"), "utf8"));
   opencodeKey = cfg.opencodeKey || "";
   groqKey = cfg.groqKey || "";
   geminiKey = cfg.geminiKey || "";
+  if (cfg.dashboardPort) dashPort = cfg.dashboardPort;
 } catch (e) { console.error("config.json inválido ou não encontrado:", e.message); }
+
+const origLog = console.log;
+const origErr = console.error;
+console.log = (...args) => { origLog(...args); emitLog("INFO", args.join(" ")); };
+console.error = (...args) => { origErr(...args); emitLog("ERROR", args.join(" ")); };
 
 const HELP = `🎵 *Comandos*
 !play <música>    —  Baixa música em MP3
@@ -136,8 +144,11 @@ const handler = async (client, msg, text) => {
   if (IGNORED.includes(msg.from)) return;
 
   const t = text.toLowerCase().trim();
+  const sender = msg.from.replace("@c.us", "");
 
   if (!t.startsWith("!")) return;
+
+  emitLog("COMMAND", `${sender}: ${text.slice(0, 80)}`);
 
   // !help / !comandos / !ajuda
   if (t === "!help" || t === "!comandos" || t === "!ajuda") {
@@ -179,6 +190,8 @@ process.on("uncaughtException", (err) => {
 
 process.on("SIGINT", () => { cleanCache(); process.exit(); });
 
+startDashboard(dashPort);
+emitLog("SYSTEM", "Iniciando bot...");
 console.log("Iniciando bot...");
-const client = createClient(handler);
+const client = createClient(handler, { setStatus, setQR });
 client.initialize();
