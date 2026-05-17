@@ -1,5 +1,6 @@
 import pkg from "whatsapp-web.js";
 import qrcode from "qrcode-terminal";
+import fs from "fs";
 import { getTunnelUrl } from "./dashboard.js";
 
 const { Client, LocalAuth } = pkg;
@@ -52,6 +53,7 @@ export function createClient(onMessage, dash = {}) {
           "--disable-dev-shm-usage", "--disable-gpu",
           "--no-zygote", "--single-process",
           "--no-first-run", "--disable-accelerated-2d-canvas",
+          "--ignore-certificate-errors",
         ],
       },
     });
@@ -104,7 +106,15 @@ export function createClient(onMessage, dash = {}) {
     });
 
     c.initialize().catch(e => {
-      console.error("Erro ao iniciar cliente:", e?.message || e);
+      const msg = e?.message || String(e);
+      console.error("Erro ao iniciar cliente:", msg);
+      if (msg.includes("CERT") || msg.includes("certificate")) {
+        console.log("⚠️ Erro de certificado - limpando sessão...");
+        const sessionPath = process.env.RAILWAY_VOLUME_MOUNT_PATH || "./session";
+        try { fs.rmSync(sessionPath, { recursive: true, force: true }); } catch {}
+        try { fs.rmSync(".wwebjs_auth", { recursive: true, force: true }); } catch {}
+        try { fs.rmSync(".wwebjs_cache", { recursive: true, force: true }); } catch {}
+      }
       cleanup();
       releaseReady();
       const delay = Math.min(10000 * Math.pow(2, retries), 120000);
