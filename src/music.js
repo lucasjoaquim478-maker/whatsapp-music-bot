@@ -45,7 +45,7 @@ function spawnYt(args, timeout) {
 
 export async function searchMusic(query) {
   await ensureYtDlp();
-  const json = await spawnYt(["ytsearch10:" + query, "--dump-json", "--no-check-certificates", "--no-warnings", "--no-playlist", "--extractor-retries", "3", "--force-ipv4"], 30000);
+  const json = await spawnYt(["ytsearch5:" + query, "--dump-json", "--no-check-certificates", "--no-warnings", "--no-playlist", "--extractor-retries", "3"], 15000);
   const results = [];
   for (const line of json.split("\n").filter(l => l.trim())) {
     try {
@@ -65,15 +65,15 @@ export async function downloadAudio(videoUrl) {
   const args = [
     videoUrl, "-f", "bestaudio[protocol!=m3u8]/bestaudio/best",
     "--output", out, "--no-part", "--no-mtime",
-    "--prefer-free-formats", "--no-check-certificates", "--no-warnings",
-    "--extractor-retries", "5", "--force-ipv4",
+    "--no-check-certificates", "--no-warnings",
+    "--extractor-retries", "3", "--throttled-rate", "100M",
     "--add-header", "User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
   ];
   if (ffmpegDir) args.push("--extract-audio", "--audio-format", "mp3", "--ffmpeg-location", ffmpegDir);
 
   return new Promise((resolve, reject) => {
     let err = "";
-    const p = spawn(ytDlp, args, { timeout: 300000 });
+    const p = spawn(ytDlp, args, { timeout: 180000 });
 
     p.stderr.on("data", (d) => { err += d.toString(); });
     p.on("close", (c) => {
@@ -113,18 +113,18 @@ export async function downloadVideo(videoUrl) {
   try { for (const f of fs.readdirSync(cacheDir)) { if (f.startsWith("video_")) { try { fs.unlinkSync(path.join(cacheDir, f)); } catch {} } } } catch {}
   const out = path.join(cacheDir, "video_%(id)s.%(ext)s");
   const args = [
-    videoUrl, "-f", "best[height<=720][filesize<100M]/bestvideo[height<=720][filesize<100M]+bestaudio/best[height<=480]",
+    videoUrl, "-f", "best[height<=480][filesize<50M]/best",
     "--merge-output-format", "mp4",
     "--output", out, "--no-part", "--no-mtime",
     "--no-check-certificates", "--no-warnings",
-    "--extractor-retries", "5", "--force-ipv4",
+    "--extractor-retries", "3", "--throttled-rate", "100M",
     "--add-header", "User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
   ];
   if (ffmpegDir) args.push("--ffmpeg-location", ffmpegDir);
 
   const filePath = await new Promise((resolve, reject) => {
     let err = "";
-    const p = spawn(ytDlp, args, { timeout: 600000 });
+    const p = spawn(ytDlp, args, { timeout: 360000 });
 
     p.stderr.on("data", (d) => { err += d.toString(); });
     p.on("close", (c) => {
@@ -148,7 +148,7 @@ export async function downloadVideo(videoUrl) {
 
 export async function fetchPlaylist(url, limit = 5) {
   await ensureYtDlp();
-  const json = await spawnYt([url, "--flat-playlist", "--dump-json", "--no-check-certificates", "--no-warnings", "--extractor-retries", "3", "--force-ipv4"], 30000);
+  const json = await spawnYt([url, "--flat-playlist", "--dump-json", "--no-check-certificates", "--no-warnings", "--extractor-retries", "3"], 15000);
   const results = [];
   for (const line of json.split("\n").filter(l => l.trim())) {
     try {
