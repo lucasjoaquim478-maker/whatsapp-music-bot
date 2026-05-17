@@ -141,22 +141,20 @@ exit
 
 function Install-Dependencies {
   Write-Color "📦 Verificando dependências..." Yellow
-  $npmPath = Join-Path $ScriptDir "node_modules"
   $pkgLock = Join-Path $ScriptDir "package-lock.json"
 
-  if (-not (Test-Path -LiteralPath $npmPath)) {
+  $depOk = Test-Path -LiteralPath (Join-Path $ScriptDir "node_modules\whatsapp-web.js")
+  if (-not $depOk) {
     Write-Color "   Instalando npm packages (pode levar alguns minutos)..." Yellow
     Set-Location -LiteralPath $ScriptDir
     $env:PUPPETEER_SKIP_DOWNLOAD = "true"
-    npm install 2>&1 | ForEach-Object { Write-Color "   $_" DarkGray }
+    npm install --no-audit --no-fund 2>&1 | ForEach-Object { Write-Color "   $_" DarkGray }
     if ($LASTEXITCODE -ne 0) {
-      Write-Color "⚠️  npm install falhou. Tentando de novo ignorando scripts..." Yellow
-      Remove-Item -Recurse -Force -LiteralPath $npmPath -ErrorAction SilentlyContinue
-      Remove-Item -Force -LiteralPath $pkgLock -ErrorAction SilentlyContinue
-      npm install --ignore-scripts 2>&1 | ForEach-Object { Write-Color "   $_" DarkGray }
+      Write-Color "⚠️  Tentando sem scripts..." Yellow
+      npm install --no-audit --no-fund --ignore-scripts 2>&1 | ForEach-Object { Write-Color "   $_" DarkGray }
     }
     if ($LASTEXITCODE -ne 0) {
-      Write-Color "❌ Falha ao instalar dependências. Execute manualmente: npm install" Red
+      Write-Color "❌ Falha ao instalar. Execute manualmente: npm install" Red
       Write-Color "   Continuando mesmo assim..." Yellow
     } else {
       Write-Color "   ✅ Dependências instaladas!" Green
