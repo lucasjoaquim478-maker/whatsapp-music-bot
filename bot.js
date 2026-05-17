@@ -195,5 +195,4 @@ process.on("SIGINT", () => { cleanCache(); process.exit(); });
 startDashboard(dashPort);
 emitLog("SYSTEM", "Iniciando bot...");
 console.log("Iniciando bot...");
-const client = createClient(handler, { setStatus, setQR });
-client.initialize();
+createClient(handler, { setStatus, setQR });

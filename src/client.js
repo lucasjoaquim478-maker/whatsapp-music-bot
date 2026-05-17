@@ -5,9 +5,19 @@ const { Client, LocalAuth } = pkg;
 
 export function createClient(onMessage, dash = {}) {
   const { setStatus, setQR } = dash;
-  let reconnectTimer = null;
 
   function startClient() {
+    let reconnectTimer = null;
+    let currentClient = null;
+
+    function cleanup() {
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (currentClient) {
+        try { currentClient.destroy(); } catch {}
+        currentClient = null;
+      }
+    }
+
     const client = new Client({
       authStrategy: new LocalAuth({ dataPath: process.env.RAILWAY_VOLUME_MOUNT_PATH || "./session" }),
       puppeteer: {
@@ -16,6 +26,7 @@ export function createClient(onMessage, dash = {}) {
         args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
       },
     });
+    currentClient = client;
 
     client.on("qr", (qr) => {
       console.log("\nEscaneie o QR Code:\n");
@@ -37,11 +48,8 @@ export function createClient(onMessage, dash = {}) {
     client.on("disconnected", (r) => {
       console.log("Desconectado:", r);
       if (setStatus) setStatus("disconnected");
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-      reconnectTimer = setTimeout(() => {
-        console.log("Reconectando...");
-        client.initialize().catch(e => console.error("Erro ao reconectar:", e.message));
-      }, 5000);
+      cleanup();
+      reconnectTimer = setTimeout(startClient, 5000);
     });
 
     client.on("message", async (msg) => {
@@ -55,12 +63,10 @@ export function createClient(onMessage, dash = {}) {
 
     client.initialize().catch(e => {
       console.error("Erro ao iniciar cliente:", e.message);
-      if (reconnectTimer) clearTimeout(reconnectTimer);
+      cleanup();
       reconnectTimer = setTimeout(startClient, 10000);
     });
-
-    return client;
   }
 
-  return startClient();
+  startClient();
 }
