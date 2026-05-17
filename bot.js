@@ -89,22 +89,25 @@ async function handleMusic(client, msg, query) {
     const videos = await searchMusic(query);
     if (!videos.length) return await msg.reply("❌ Nenhum resultado encontrado.");
 
-    await msg.reply(`🎵 ${videos[0].title}\n📥 Baixando...`);
+    let lastErr = "";
+    for (let i = 0; i < videos.length; i++) {
+      await msg.reply(`🎵 (${i + 1}/${videos.length}) ${videos[i].title}\n📥 Baixando...`);
 
-    try {
-      const fp = await downloadAudio(videos[0].url);
-      if (fp && fs.existsSync(fp) && fs.statSync(fp).size > 1000) {
-        await sendAudio(client, msg.from, fp, videos[0].title);
-        try { fs.unlinkSync(fp); } catch {}
-        return;
+      try {
+        const fp = await downloadAudio(videos[i].url);
+        if (fp && fs.existsSync(fp) && fs.statSync(fp).size > 1000) {
+          await sendAudio(client, msg.from, fp, videos[i].title);
+          try { fs.unlinkSync(fp); } catch {}
+          return;
+        }
+      } catch (e) {
+        lastErr = (e && e.message ? e.message : String(e)).slice(0, 200);
+        try { fs.appendFileSync("log.txt", `[${new Date().toISOString()}] tentativa ${i + 1} falhou: ${videos[i].url}: ${e.stack || e}\n`); } catch {}
+        continue;
       }
-    } catch (e) {
-      const errMsg = (e && e.message ? e.message : String(e)).slice(0, 200);
-      try { fs.appendFileSync("log.txt", `[${new Date().toISOString()}] ${videos[0].title}: ${e.stack || e}\n`); } catch {}
-      return await msg.reply(`❌ Download: ${errMsg}`);
     }
 
-    await msg.reply(`❌ Áudio vazio. Link: ${videos[0].url}`);
+    await msg.reply(`❌ Nenhum áudio disponível. ${lastErr ? `Último erro: ${lastErr}` : ""}`);
   } catch (err) {
     const errMsg = (err && err.message ? err.message : String(err)).slice(0, 200);
     try { fs.appendFileSync("log.txt", `[${new Date().toISOString()}] ${err.stack || err}\n`); } catch {}
@@ -118,26 +121,32 @@ async function handleVideo(client, msg, query) {
     const videos = await searchMusic(query);
     if (!videos.length) return await msg.reply("❌ Nenhum resultado encontrado.");
 
-    await msg.reply(`🎬 ${videos[0].title}\n📥 Baixando vídeo...`);
+    let lastErr = "";
+    for (let i = 0; i < videos.length; i++) {
+      await msg.reply(`🎬 (${i + 1}/${videos.length}) ${videos[i].title}\n📥 Baixando...`);
 
-    let fp = null;
-    try {
-      fp = await downloadVideo(videos[0].url);
-    } catch (e) {
-      const errMsg = (e && e.message ? e.message : String(e)).slice(0, 200);
-      try { fs.appendFileSync("log.txt", `[${new Date().toISOString()}] video download: ${e.stack || e}\n`); } catch {}
-      return await msg.reply(`❌ Download: ${errMsg}. Link: ${videos[0].url}`);
-    }
-    if (!fp || !fs.existsSync(fp) || fs.statSync(fp).size <= 1000)
-      return await msg.reply(`❌ Vídeo vazio. Link: ${videos[0].url}`);
+      let fp = null;
+      try {
+        fp = await downloadVideo(videos[i].url);
+      } catch (e) {
+        lastErr = (e && e.message ? e.message : String(e)).slice(0, 200);
+        try { fs.appendFileSync("log.txt", `[${new Date().toISOString()}] tentativa ${i + 1} falhou: ${videos[i].url}: ${e.stack || e}\n`); } catch {}
+        continue;
+      }
+      if (!fp || !fs.existsSync(fp) || fs.statSync(fp).size <= 1000) { continue; }
 
-    try {
-      await sendVideo(client, msg.from, fp, videos[0].title);
-      try { fs.unlinkSync(fp); } catch {}
-    } catch {
-      await msg.reply(`❌ Muito grande pra enviar. Link: ${videos[0].url}`);
-      try { fs.unlinkSync(fp); } catch {}
+      try {
+        await sendVideo(client, msg.from, fp, videos[i].title);
+        try { fs.unlinkSync(fp); } catch {}
+        return;
+      } catch {
+        try { fs.unlinkSync(fp); } catch {}
+        lastErr = "Vídeo muito grande para enviar";
+        continue;
+      }
     }
+
+    await msg.reply(`❌ Nenhum vídeo disponível. ${lastErr ? `Último erro: ${lastErr}` : ""}`);
   } catch (err) {
     const errMsg = (err && err.message ? err.message : String(err)).slice(0, 200);
     try { fs.appendFileSync("log.txt", `[${new Date().toISOString()}] ${err.stack || err}\n`); } catch {}
