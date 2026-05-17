@@ -4,6 +4,7 @@ RUN apt-get update && apt-get install -y \
   chromium \
   chromium-sandbox \
   fonts-liberation \
+  python3 \
   libasound2 \
   libatk-bridge2.0-0 \
   libdrm2 \
