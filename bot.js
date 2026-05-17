@@ -12,13 +12,14 @@ const IGNORE = "🤖";
 const IGNORED = ["558496321255@c.us", "558498321255@c.us"];
 
 let opencodeKey = "", groqKey = "", geminiKey = "";
-let dashPort = 3000;
+let dashPort = parseInt(process.env.PORT) || 3000;
 try {
   const cfg = JSON.parse(fs.readFileSync(path.join(__dirname, "config.json"), "utf8"));
-  opencodeKey = cfg.opencodeKey || "";
-  groqKey = cfg.groqKey || "";
-  geminiKey = cfg.geminiKey || "";
-  if (cfg.dashboardPort) dashPort = cfg.dashboardPort;
+  opencodeKey = process.env.OPENCODE_KEY || cfg.opencodeKey || "";
+  groqKey = process.env.GROQ_KEY || cfg.groqKey || "";
+  geminiKey = process.env.GEMINI_KEY || cfg.geminiKey || "";
+  if (process.env.DASH_PORT) dashPort = parseInt(process.env.DASH_PORT);
+  else if (cfg.dashboardPort) dashPort = cfg.dashboardPort;
 } catch (e) { console.error("config.json inválido ou não encontrado:", e.message); }
 
 const origLog = console.log;

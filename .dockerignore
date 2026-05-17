@@ -1,0 +1,14 @@
+node_modules
+temp
+.git
+*.md
+config.json
+.log.txt
+session
+.wwebjs_auth
+.wwebjs_cache
+ngrok.exe
+rclone.exe
+launcher.exe
+setup-gdrive.bat
+start-completo.bat
