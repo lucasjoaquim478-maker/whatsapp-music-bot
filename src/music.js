@@ -91,13 +91,14 @@ export async function downloadAudio(videoUrl) {
   const ext = ffmpegDir ? "mp3" : "%(ext)s";
   const out = path.join(cacheDir, `audio_%(id)s.${ext}`);
   const expectedPath = vid ? path.join(cacheDir, `audio_${vid}.${ext === "%(ext)s" ? "webm" : ext}`) : null;
+  const hasCookies = fs.existsSync(cookiesPath);
   const args = [
     videoUrl,
     "--output", out, "--no-part", "--no-mtime",
     "--no-check-certificates", "--no-warnings",
     "--extractor-retries", "3", "--throttled-rate", "100M",
-    "--add-header", "User-Agent:Mozilla/5.0 (SMART-TV; Linux; Tizen 6.0) AppleWebKit/537.36",
-    "--extractor-args", "youtube:player_client=tv,youtube",
+    "--add-header", hasCookies ? "User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130.0.0.0 Safari/537.36" : "User-Agent:Mozilla/5.0 (SMART-TV; Linux; Tizen 6.0) AppleWebKit/537.36",
+    "--extractor-args", hasCookies ? "youtube:player_client=web" : "youtube:player_client=tv,youtube",
     ...cookieArgs(),
   ];
   if (ffmpegDir) {
@@ -150,14 +151,15 @@ export async function downloadVideo(videoUrl) {
   const vid = videoIdFromUrl(videoUrl);
   const out = path.join(cacheDir, "video_%(id)s.%(ext)s");
   const expectedPath = vid ? path.join(cacheDir, `video_${vid}.mp4`) : null;
+  const hasCookies = fs.existsSync(cookiesPath);
   const args = [
     videoUrl, "-f", "best[height<=480]/best",
     "--merge-output-format", "mp4",
     "--output", out, "--no-part", "--no-mtime",
     "--no-check-certificates", "--no-warnings",
     "--extractor-retries", "3", "--throttled-rate", "100M",
-    "--add-header", "User-Agent:Mozilla/5.0 (SMART-TV; Linux; Tizen 6.0) AppleWebKit/537.36",
-    "--extractor-args", "youtube:player_client=tv,youtube",
+    "--add-header", hasCookies ? "User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130.0.0.0 Safari/537.36" : "User-Agent:Mozilla/5.0 (SMART-TV; Linux; Tizen 6.0) AppleWebKit/537.36",
+    "--extractor-args", hasCookies ? "youtube:player_client=web" : "youtube:player_client=tv,youtube",
     ...cookieArgs(),
   ];
   if (ffmpegDir) args.push("--ffmpeg-location", ffmpegDir);
