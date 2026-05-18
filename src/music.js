@@ -58,11 +58,18 @@ export async function searchMusic(query) {
   return results;
 }
 
+function videoIdFromUrl(url) {
+  const m = url.match(/[?&]v=([^&]+)/);
+  return m ? m[1] : null;
+}
+
 export async function downloadAudio(videoUrl) {
   await ensureYtDlp();
   try { for (const f of fs.readdirSync(cacheDir)) { if (f.startsWith("audio_")) { try { fs.unlinkSync(path.join(cacheDir, f)); } catch {} } } } catch {}
+  const vid = videoIdFromUrl(videoUrl);
   const ext = ffmpegDir ? "mp3" : "%(ext)s";
   const out = path.join(cacheDir, `audio_%(id)s.${ext}`);
+  const expectedPath = vid ? path.join(cacheDir, `audio_${vid}.${ext === "%(ext)s" ? "webm" : ext}`) : null;
   const args = [
     videoUrl, "-f", "bestaudio[protocol!=m3u8]/bestaudio/best",
     "--output", out, "--no-part", "--no-mtime",
@@ -79,6 +86,7 @@ export async function downloadAudio(videoUrl) {
     p.stderr.on("data", (d) => { err += d.toString(); });
     p.on("close", (c) => {
       try {
+        if (expectedPath && fs.existsSync(expectedPath) && fs.statSync(expectedPath).size > 1000) return resolve(expectedPath);
         const files = fs.readdirSync(cacheDir).filter(f => f.startsWith("audio_"));
         for (const f of files) {
           const fp = path.join(cacheDir, f);
@@ -112,7 +120,9 @@ function compressVideo(filePath) {
 export async function downloadVideo(videoUrl) {
   await ensureYtDlp();
   try { for (const f of fs.readdirSync(cacheDir)) { if (f.startsWith("video_")) { try { fs.unlinkSync(path.join(cacheDir, f)); } catch {} } } } catch {}
+  const vid = videoIdFromUrl(videoUrl);
   const out = path.join(cacheDir, "video_%(id)s.%(ext)s");
+  const expectedPath = vid ? path.join(cacheDir, `video_${vid}.mp4`) : null;
   const args = [
     videoUrl, "-f", "best[height<=480][filesize<50M]/best",
     "--merge-output-format", "mp4",
@@ -130,6 +140,7 @@ export async function downloadVideo(videoUrl) {
     p.stderr.on("data", (d) => { err += d.toString(); });
     p.on("close", (c) => {
       try {
+        if (expectedPath && fs.existsSync(expectedPath) && fs.statSync(expectedPath).size > 1000) return resolve(expectedPath);
         const files = fs.readdirSync(cacheDir).filter(f => f.startsWith("video_"));
         for (const f of files) {
           const fp = path.join(cacheDir, f);
@@ -141,6 +152,7 @@ export async function downloadVideo(videoUrl) {
     p.on("error", (e) => reject(new Error(String(e && e.message ? e.message : e))));
   });
 
+  if (!fs.existsSync(filePath)) throw new Error("Arquivo de video nao encontrado apos download");
   if (fs.statSync(filePath).size > 45 * 1024 * 1024 && ffmpegDir) {
     return await compressVideo(filePath);
   }

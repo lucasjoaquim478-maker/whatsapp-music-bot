@@ -86,6 +86,7 @@ async function fetchWithTimeout(url, opts, ms = 30000) {
 }
 
 async function askAI(question) {
+  const errors = [];
   if (groqKey) {
     try {
       const r = await fetchWithTimeout("https://api.groq.com/openai/v1/chat/completions", {
@@ -93,10 +94,8 @@ async function askAI(question) {
         headers: { "Content-Type": "application/json", Authorization: "Bearer " + groqKey },
         body: JSON.stringify({ model: "llama-3.1-8b-instant", messages: [{ role: "user", content: question }] }),
       });
-      if (r.ok) { const d = await r.json(); return d?.choices?.[0]?.message?.content || "❌ Sem resposta."; }
-      const errBody = await r.text().catch(() => "");
-      return `❌ Erro Groq: ${r.status} ${errBody.slice(0, 200)}`;
-    } catch (e) { return `❌ Groq: ${e?.message || e}`; }
+      if (r.ok) { const d = await r.json(); const ans = d?.choices?.[0]?.message?.content; if (ans) return ans; }
+    } catch (e) { errors.push("Groq: " + (e?.message || e)); }
   }
   if (opencodeKey) {
     try {
@@ -105,10 +104,8 @@ async function askAI(question) {
         headers: { "Content-Type": "application/json", Authorization: "Bearer " + opencodeKey },
         body: JSON.stringify({ model: "gpt-5-nano", messages: [{ role: "user", content: question }], max_tokens: 256 }),
       });
-      if (r.ok) { const d = await r.json(); return d?.choices?.[0]?.message?.content || "❌ Sem resposta."; }
-      const errBody = await r.text().catch(() => "");
-      return `❌ Erro OpenCode: ${r.status} ${errBody.slice(0, 200)}`;
-    } catch (e) { return `❌ OpenCode: ${e?.message || e}`; }
+      if (r.ok) { const d = await r.json(); const ans = d?.choices?.[0]?.message?.content; if (ans) return ans; }
+    } catch (e) { errors.push("OpenCode: " + (e?.message || e)); }
   }
   if (geminiKey) {
     try {
@@ -116,12 +113,10 @@ async function askAI(question) {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ contents: [{ parts: [{ text: question }] }] }),
       });
-      if (r.ok) { const d = await r.json(); return d?.candidates?.[0]?.content?.parts?.[0]?.text || "❌ Sem resposta."; }
-      const errBody = await r.text().catch(() => "");
-      return `❌ Erro Gemini: ${r.status} ${errBody.slice(0, 200)}`;
-    } catch (e) { return `❌ Gemini: ${e?.message || e}`; }
+      if (r.ok) { const d = await r.json(); const ans = d?.candidates?.[0]?.content?.parts?.[0]?.text; if (ans) return ans; }
+    } catch (e) { errors.push("Gemini: " + (e?.message || e)); }
   }
-  return "❌ Nenhuma API key configurada (coloca opencodeKey, groqKey ou geminiKey no config.json).";
+  return errors.length ? "❌ Todos os providers falharam:\n" + errors.join("\n") : "❌ Nenhuma API key configurada.";
 }
 
 async function handleMusic(client, msg, query) {
@@ -225,7 +220,7 @@ const handler = async (client, msg, text) => {
 
   // !video <query> / !vídeo <query>
   if (t.startsWith("!video ") || t.startsWith("!vídeo ")) {
-    const prefixLen = t.startsWith("!video ") ? 7 : 8;
+    const prefixLen = t.startsWith("!video ") ? 7 : 7;
     const q = text.slice(prefixLen).trim();
     if (!q) return;
     return await handleVideo(client, msg, q);
@@ -319,6 +314,7 @@ process.on("unhandledRejection", (reason) => {
 });
 
 process.on("SIGINT", () => { cleanCache(); process.exit(); });
+process.on("SIGTERM", () => { cleanCache(); process.exit(0); });
 
 startDashboard(dashPort);
 emitLog("SYSTEM", "Iniciando bot...");

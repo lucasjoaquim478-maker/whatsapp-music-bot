@@ -165,28 +165,43 @@ updateStatus();
   });
 }
 
+let tunnelRetries = 0;
+
 function startTunnel(port) {
   const isWindows = process.platform === "win32";
-  if (isWindows) return;
+  if (isWindows) {
+    console.log("⚠️ Tunnel SSH nao suportado no Windows");
+    return;
+  }
 
   const proc = spawn("ssh", ["-R", "80:localhost:" + port, "nokey@localhost.run"], {
     stdio: ["ignore", "pipe", "pipe"],
-    timeout: 15000,
   });
 
-  proc.stderr.on("data", (data) => {
+  function onTunnelData(data) {
     const text = data.toString();
     const m = text.match(/https?:\/\/[^\s]+/);
     if (m) {
       tunnelUrl = m[0].replace(/\/$/, "");
+      tunnelRetries = 0;
       emitLog("SYSTEM", "🌍 Tunnel: " + tunnelUrl);
       console.log("Dashboard publico: " + tunnelUrl);
     }
+  }
+
+  proc.stdout.on("data", onTunnelData);
+  proc.stderr.on("data", onTunnelData);
+
+  proc.on("error", (err) => {
+    console.error("Tunnel SSH error:", err.message);
+    emitLog("ERROR", "Tunnel: " + err.message);
   });
 
-  proc.on("error", () => {});
-  proc.on("close", () => {
-    setTimeout(() => startTunnel(port), 30000);
+  proc.on("close", (code) => {
+    const delay = Math.min(5000 * Math.pow(2, tunnelRetries), 120000);
+    tunnelRetries++;
+    emitLog("INFO", `Tunnel fechou (codigo ${code}), reconectando em ${delay/1000}s...`);
+    setTimeout(() => startTunnel(port), delay);
   });
 }
 

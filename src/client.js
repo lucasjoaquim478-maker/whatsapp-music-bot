@@ -24,6 +24,7 @@ export function createClient(onMessage, dash = {}) {
   }
 
   async function cleanup() {
+    connecting = false;
     if (currentClient) {
       try { currentClient.removeAllListeners(); } catch {}
       try { await currentClient.destroy(); } catch {}
