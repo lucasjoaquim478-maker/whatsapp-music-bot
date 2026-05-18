@@ -1,37 +1,35 @@
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
-import { execSync } from "child_process";
-import { createRequire } from "module";
+process.on("uncaughtException", (e) => { console.error("UNCAUGHT:", e?.stack || e); });
+process.on("unhandledRejection", (e) => { console.error("UNHANDLED:", e?.stack || e); });
+console.log("[INDEX] Node", process.version, process.platform, process.arch, "PID:", process.pid);
+console.log("[INDEX] CWD:", process.cwd(), "ARGS:", process.argv.slice(1).join(" "));
+console.log("[INDEX] PATH:", process.env.PATH ? "ok" : "missing");
+console.log("[INDEX] CHROMIUM_PATH:", process.env.CHROMIUM_PATH || "(not set)");
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const req = createRequire(import.meta.url);
+try {
+  const fs = await import("fs");
+  const path = await import("path");
+  const { execSync } = await import("child_process");
+  const { createRequire } = await import("module");
+  const { fileURLToPath } = await import("url");
 
-function checkModules() {
-  try { req.resolve("whatsapp-web.js"); return true; } catch { return false; }
-}
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const req = createRequire(import.meta.url);
 
-if (!checkModules()) {
-  console.log("📦 Dependências não encontradas. Instalando...");
-  try {
-    execSync("npm install --no-audit --no-fund", { cwd: __dirname, stdio: "inherit", timeout: 300000 });
-  } catch {
-    console.log("⚠️ Tentando sem scripts de pós-instalação...");
-    try {
-      execSync("npm install --no-audit --no-fund --ignore-scripts", { cwd: __dirname, stdio: "inherit", timeout: 300000 });
-    } catch (e2) {
-      console.error("❌ Falha ao instalar. Execute manualmente: cd /d \"" + __dirname + "\" && npm install");
-      process.exit(1);
-    }
+  console.log("[INDEX] Modules loaded, checking deps...");
+  let modulesOk = false;
+  try { req.resolve("whatsapp-web.js"); modulesOk = true; } catch { modulesOk = false; }
+
+  if (!modulesOk) {
+    console.log("[INDEX] npm install...");
+    try { execSync("npm install --no-audit --no-fund --ignore-scripts", { cwd: __dirname, stdio: "inherit", timeout: 300000 }); } catch (e) { console.error("[INDEX] npm install failed:", e.message); }
+    try { req.resolve("whatsapp-web.js"); modulesOk = true; } catch { modulesOk = false; }
+    if (!modulesOk) { console.error("[INDEX] Modules still missing"); process.exit(1); }
   }
-  if (!checkModules()) {
-    console.error("❌ Ainda faltam módulos. Execute: npm install");
-    process.exit(1);
-  }
-  console.log("✅ Dependências instaladas!");
-}
 
-import("./bot.js").catch(err => {
-  console.error("Falha ao carregar bot.js:", err);
+  console.log("[INDEX] Loading bot.js...");
+  const bot = await import("./bot.js");
+  console.log("[INDEX] bot.js loaded successfully");
+} catch (err) {
+  console.error("[INDEX] FATAL:", err?.stack || err);
   process.exit(1);
-});
+}
