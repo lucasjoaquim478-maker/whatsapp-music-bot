@@ -162,7 +162,7 @@ updateStatus();
 
   server.listen(port, () => {
     emitLog("SYSTEM", `Dashboard: http://localhost:${port}`);
-    if (!process.env.RAILWAY_VOLUME_MOUNT_PATH) startTunnel(port);
+    if (!process.env.RAILWAY_SERVICE_NAME) startTunnel(port);
   });
 }
 

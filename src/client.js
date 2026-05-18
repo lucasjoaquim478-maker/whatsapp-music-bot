@@ -5,6 +5,11 @@ import { getTunnelUrl } from "./dashboard.js";
 
 const { Client, LocalAuth } = pkg;
 
+function resolveSessionPath() {
+  const p = process.env.RAILWAY_VOLUME_MOUNT_PATH || "./session";
+  try { fs.mkdirSync(p, { recursive: true }); return p; } catch { return "./session"; }
+}
+
 export function createClient(onMessage, dash = {}) {
   const { setStatus, setQR } = dash;
   let currentClient = null;
@@ -12,6 +17,7 @@ export function createClient(onMessage, dash = {}) {
   let markReady = null;
   let connecting = false;
   let retries = 0;
+  const sessionPath = resolveSessionPath();
 
   function blockUntilReady() {
     readyPromise = new Promise(r => { markReady = r; });
@@ -45,7 +51,7 @@ export function createClient(onMessage, dash = {}) {
     if (setStatus) setStatus("reconnecting");
 
     const c = new Client({
-      authStrategy: new LocalAuth({ dataPath: process.env.RAILWAY_VOLUME_MOUNT_PATH || "./session" }),
+      authStrategy: new LocalAuth({ dataPath: sessionPath }),
       puppeteer: {
         headless: true,
         executablePath: process.env.CHROMIUM_PATH || undefined,
@@ -111,7 +117,6 @@ export function createClient(onMessage, dash = {}) {
       const msg = e?.message || String(e);
       console.error("Erro ao iniciar cliente:", msg);
       console.log("⚠️ Limpando sessão para nova tentativa...");
-      const sessionPath = process.env.RAILWAY_VOLUME_MOUNT_PATH || "./session";
       try { fs.rmSync(sessionPath, { recursive: true, force: true }); } catch {}
       try { fs.rmSync(".wwebjs_auth", { recursive: true, force: true }); } catch {}
       try { fs.rmSync(".wwebjs_cache", { recursive: true, force: true }); } catch {}
