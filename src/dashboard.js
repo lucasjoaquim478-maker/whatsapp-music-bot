@@ -21,9 +21,9 @@ export function emitLog(level, msg) {
 export function setStatus(s) { botStatus = s; emitLog("SYSTEM", `Status: ${s}`); }
 export function setQR(qr) { qrData = qr; }
 
-export function startDashboard(port = 3000) {
+export function startDashboard(port = 3000, existingServer) {
   const app = express();
-  const server = http.createServer(app);
+  const server = existingServer || http.createServer(app);
 
   app.get("/api/logs/stream", (req, res) => {
     res.writeHead(200, {
@@ -160,10 +160,17 @@ updateStatus();
     emitLog("ERROR", "Dashboard: " + err.message);
   });
 
-  server.listen(port, () => {
-    emitLog("SYSTEM", `Dashboard: http://localhost:${port}`);
+  if (existingServer) {
+    for (const l of existingServer.listeners("request")) existingServer.removeListener("request", l);
+    existingServer.on("request", app);
+    emitLog("SYSTEM", `Dashboard attached to existing server`);
     if (!process.env.RAILWAY_SERVICE_NAME) startTunnel(port);
-  });
+  } else {
+    server.listen(port, () => {
+      emitLog("SYSTEM", `Dashboard: http://localhost:${port}`);
+      if (!process.env.RAILWAY_SERVICE_NAME) startTunnel(port);
+    });
+  }
 }
 
 let tunnelRetries = 0;

@@ -322,9 +322,9 @@ process.on("SIGTERM", () => { cleanCache(); process.exit(0); });
 console.log("Iniciando bot (v55-railway)...");
 emitLog("SYSTEM", "Iniciando bot...");
 try {
-  startDashboard(dashPort);
+  startDashboard(dashPort, global.__HTTP_SERVER);
 } catch (e) {
   console.error("Falha ao iniciar dashboard:", e);
-  startDashboard(0);
+  startDashboard(0, global.__HTTP_SERVER);
 }
 createClient(handler, { setStatus, setQR });
