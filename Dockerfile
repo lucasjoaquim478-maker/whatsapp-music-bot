@@ -26,6 +26,7 @@ ENV CHROMIUM_PATH=/usr/bin/chromium
 ENV PUPPETEER_SKIP_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 ENV RAILWAY_VOLUME_MOUNT_PATH=/data
+ENV NODE_OPTIONS=--max-old-space-size=256
 
 WORKDIR /app
 
@@ -36,4 +37,4 @@ COPY . .
 
 EXPOSE 3000
 
-CMD mkdir -p /data /app/temp && node index.js
+CMD mkdir -p /data /app/temp 2>/dev/null; NODE_OPTIONS='--max-old-space-size=256' node index.js
