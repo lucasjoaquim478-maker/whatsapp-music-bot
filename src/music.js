@@ -71,7 +71,7 @@ export async function downloadAudio(videoUrl) {
   const out = path.join(cacheDir, `audio_%(id)s.${ext}`);
   const expectedPath = vid ? path.join(cacheDir, `audio_${vid}.${ext === "%(ext)s" ? "webm" : ext}`) : null;
   const args = [
-    videoUrl, "-f", "bestaudio[protocol!=m3u8]/bestaudio/best",
+    videoUrl, "-f", "bestaudio",
     "--output", out, "--no-part", "--no-mtime",
     "--no-check-certificates", "--no-warnings",
     "--extractor-retries", "3", "--throttled-rate", "100M",
@@ -124,7 +124,7 @@ export async function downloadVideo(videoUrl) {
   const out = path.join(cacheDir, "video_%(id)s.%(ext)s");
   const expectedPath = vid ? path.join(cacheDir, `video_${vid}.mp4`) : null;
   const args = [
-    videoUrl, "-f", "best[height<=480][filesize<50M]/best",
+    videoUrl, "-f", "best[height<=480]/best",
     "--merge-output-format", "mp4",
     "--output", out, "--no-part", "--no-mtime",
     "--no-check-certificates", "--no-warnings",
