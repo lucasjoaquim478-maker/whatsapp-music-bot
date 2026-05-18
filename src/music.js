@@ -20,6 +20,20 @@ const cacheDir = path.join(__dirname, "..", "temp");
 const isWin = process.platform === "win32";
 const ytDlp = isWin ? path.join(cacheDir, "yt-dlp.exe") : "yt-dlp";
 const maxDur = 7200;
+const cookiesPath = path.join(cacheDir, "youtube_cookies.txt");
+
+// Decode YouTube cookies from env var (base64) if provided
+if (process.env.YOUTUBE_COOKIES) {
+  try {
+    fs.mkdirSync(cacheDir, { recursive: true });
+    fs.writeFileSync(cookiesPath, Buffer.from(process.env.YOUTUBE_COOKIES, "base64"));
+    console.log("YouTube cookies loaded (" + fs.statSync(cookiesPath).size + " bytes)");
+  } catch (e) { console.error("Falha ao carregar cookies:", e.message); }
+}
+
+function cookieArgs() {
+  return fs.existsSync(cookiesPath) ? ["--cookies", cookiesPath] : [];
+}
 
 async function ensureYtDlp() {
   if (isWin) {
@@ -52,7 +66,7 @@ function spawnYt(args, timeout) {
 
 export async function searchMusic(query) {
   await ensureYtDlp();
-  const json = await spawnYt(["ytsearch5:" + query, "--dump-json", "--no-check-certificates", "--no-warnings", "--no-playlist", "--extractor-retries", "3", "--extractor-args", "youtube:player_client=tv,youtube"], 30000);
+  const json = await spawnYt(["ytsearch5:" + query, "--dump-json", "--no-check-certificates", "--no-warnings", "--no-playlist", "--extractor-retries", "3", ...cookieArgs()], 30000);
   const results = [];
   for (const line of json.split("\n").filter(l => l.trim())) {
     try {
@@ -84,6 +98,7 @@ export async function downloadAudio(videoUrl) {
     "--extractor-retries", "3", "--throttled-rate", "100M",
     "--add-header", "User-Agent:Mozilla/5.0 (SMART-TV; Linux; Tizen 6.0) AppleWebKit/537.36",
     "--extractor-args", "youtube:player_client=tv,youtube",
+    ...cookieArgs(),
   ];
   if (ffmpegDir) {
     args.push("--extract-audio", "--audio-format", "mp3", "--ffmpeg-location", ffmpegDir);
@@ -143,6 +158,7 @@ export async function downloadVideo(videoUrl) {
     "--extractor-retries", "3", "--throttled-rate", "100M",
     "--add-header", "User-Agent:Mozilla/5.0 (SMART-TV; Linux; Tizen 6.0) AppleWebKit/537.36",
     "--extractor-args", "youtube:player_client=tv,youtube",
+    ...cookieArgs(),
   ];
   if (ffmpegDir) args.push("--ffmpeg-location", ffmpegDir);
 
