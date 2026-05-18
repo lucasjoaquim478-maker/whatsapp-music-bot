@@ -82,7 +82,8 @@ export async function downloadAudio(videoUrl) {
     "--output", out, "--no-part", "--no-mtime",
     "--no-check-certificates", "--no-warnings",
     "--extractor-retries", "3", "--throttled-rate", "100M",
-    "--add-header", "User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    "--add-header", "User-Agent:Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36",
+    "--extractor-args", "youtube:player_client=android,youtube",
   ];
   if (ffmpegDir) {
     args.push("--extract-audio", "--audio-format", "mp3", "--ffmpeg-location", ffmpegDir);
@@ -140,7 +141,8 @@ export async function downloadVideo(videoUrl) {
     "--output", out, "--no-part", "--no-mtime",
     "--no-check-certificates", "--no-warnings",
     "--extractor-retries", "3", "--throttled-rate", "100M",
-    "--add-header", "User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    "--add-header", "User-Agent:Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36",
+    "--extractor-args", "youtube:player_client=android,youtube",
   ];
   if (ffmpegDir) args.push("--ffmpeg-location", ffmpegDir);
 

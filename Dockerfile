@@ -5,24 +5,11 @@ RUN apt-get update && apt-get install -y \
   chromium-sandbox \
   fonts-liberation \
   python3 \
+  python3-pip \
   ffmpeg \
-  yt-dlp \
-  libasound2 \
-  libatk-bridge2.0-0 \
-  libdrm2 \
-  libgbm1 \
-  libnspr4 \
-  libnss3 \
-  libu2f-udev \
-  libvulkan1 \
-  libxcomposite1 \
-  libxdamage1 \
-  libxfixes3 \
-  libxkbcommon0 \
-  libxrandr2 \
-  xdg-utils \
   --no-install-recommends \
-  && rm -rf /var/lib/apt/lists/*
+  && rm -rf /var/lib/apt/lists/* \
+  && pip3 install yt-dlp --no-cache-dir --break-system-packages 2>/dev/null || true
 
 ENV CHROMIUM_PATH=/usr/bin/chromium
 ENV PUPPETEER_SKIP_DOWNLOAD=true
