@@ -52,9 +52,9 @@ export function createClient(onMessage, dash = {}) {
         args: [
           "--no-sandbox", "--disable-setuid-sandbox",
           "--disable-dev-shm-usage", "--disable-gpu",
-          "--single-process", "--no-zygote",
+          "--no-zygote",
           "--no-first-run", "--disable-accelerated-2d-canvas",
-          "--disable-extensions",
+          "--disable-extensions", "--disable-background-networking",
           "--ignore-certificate-errors",
         ],
       },
