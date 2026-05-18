@@ -14,6 +14,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const IGNORE = "🤖";
 const IGNORED = ["558496321255@c.us", "558498321255@c.us"];
 const startTime = Date.now();
+console.log("Bot iniciando, PID:", process.pid, "Node:", process.version, "PLAT:", process.platform, "RAILWAY:", !!process.env.RAILWAY_VOLUME_MOUNT_PATH);
+console.log("PORT env:", process.env.PORT, "CHROMIUM_PATH:", process.env.CHROMIUM_PATH);
+console.log("GROQ_KEY set:", !!process.env.GROQ_KEY, "OPENCODE_KEY set:", !!process.env.OPENCODE_KEY);
 
 let opencodeKey = process.env.OPENCODE_KEY || "";
 let groqKey = process.env.GROQ_KEY || "";
@@ -316,7 +319,12 @@ process.on("unhandledRejection", (reason) => {
 process.on("SIGINT", () => { cleanCache(); process.exit(); });
 process.on("SIGTERM", () => { cleanCache(); process.exit(0); });
 
-startDashboard(dashPort);
+console.log("Iniciando bot (v55-railway)...");
 emitLog("SYSTEM", "Iniciando bot...");
-console.log("Iniciando bot...");
+try {
+  startDashboard(dashPort);
+} catch (e) {
+  console.error("Falha ao iniciar dashboard:", e);
+  startDashboard(0);
+}
 createClient(handler, { setStatus, setQR });
