@@ -40,6 +40,7 @@ export function startDashboard(port = 3000) {
     req.on("error", remove);
   });
 
+  app.get("/health", (req, res) => res.json({ ok: true }));
   app.get("/api/status", (req, res) => {
     res.json({ status: botStatus, qr: qrData });
   });
