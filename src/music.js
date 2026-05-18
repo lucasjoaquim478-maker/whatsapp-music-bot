@@ -52,7 +52,7 @@ function spawnYt(args, timeout) {
 
 export async function searchMusic(query) {
   await ensureYtDlp();
-  const json = await spawnYt(["ytsearch5:" + query, "--dump-json", "--no-check-certificates", "--no-warnings", "--no-playlist", "--extractor-retries", "3"], 15000);
+  const json = await spawnYt(["ytsearch5:" + query, "--dump-json", "--no-check-certificates", "--no-warnings", "--no-playlist", "--extractor-retries", "3", "--extractor-args", "youtube:player_client=android,youtube", "--add-header", "User-Agent:Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36"], 30000);
   const results = [];
   for (const line of json.split("\n").filter(l => l.trim())) {
     try {
