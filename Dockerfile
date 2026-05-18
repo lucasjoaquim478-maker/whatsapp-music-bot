@@ -5,11 +5,10 @@ RUN apt-get update && apt-get install -y \
   chromium-sandbox \
   fonts-liberation \
   python3 \
-  python3-pip \
   ffmpeg \
+  yt-dlp \
   --no-install-recommends \
-  && rm -rf /var/lib/apt/lists/* \
-  && pip3 install yt-dlp --no-cache-dir --break-system-packages 2>/dev/null || true
+  && rm -rf /var/lib/apt/lists/*
 
 ENV CHROMIUM_PATH=/usr/bin/chromium
 ENV PUPPETEER_SKIP_DOWNLOAD=true
