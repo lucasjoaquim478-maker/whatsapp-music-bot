@@ -21,7 +21,7 @@ console.log("GROQ_KEY set:", !!process.env.GROQ_KEY, "OPENCODE_KEY set:", !!proc
 let opencodeKey = process.env.OPENCODE_KEY || "";
 let groqKey = process.env.GROQ_KEY || "";
 let geminiKey = process.env.GEMINI_KEY || "";
-let dashPort = parseInt(process.env.PORT || process.env.DASH_PORT) || 3000;
+let dashPort = parseInt(process.env.DASH_PORT) || 3000;
 try {
   const cfg = JSON.parse(fs.readFileSync(path.join(__dirname, "config.json"), "utf8"));
   if (!opencodeKey) opencodeKey = cfg.opencodeKey || "";
