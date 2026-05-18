@@ -25,6 +25,7 @@ RUN apt-get update && apt-get install -y \
 ENV CHROMIUM_PATH=/usr/bin/chromium
 ENV PUPPETEER_SKIP_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+ENV RAILWAY_VOLUME_MOUNT_PATH=/data
 
 WORKDIR /app
 

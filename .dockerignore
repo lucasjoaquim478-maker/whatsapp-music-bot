@@ -3,12 +3,15 @@ temp
 .git
 *.md
 config.json
-.log.txt
+log.txt
 session
 .wwebjs_auth
 .wwebjs_cache
 ngrok.exe
 rclone.exe
 launcher.exe
+launcher.ps1
 setup-gdrive.bat
 start-completo.bat
+iniciar.bat
+_discloud
