@@ -5,6 +5,7 @@ RUN apt-get update && apt-get install -y \
   chromium-sandbox \
   fonts-liberation \
   python3 \
+  ffmpeg \
   yt-dlp \
   libasound2 \
   libatk-bridge2.0-0 \

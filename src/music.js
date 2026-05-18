@@ -8,6 +8,13 @@ const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 let ffmpegDir = null;
 try { ffmpegDir = path.dirname(require("ffmpeg-static")); } catch {}
+if (!ffmpegDir) {
+  try {
+    const { execSync } = require("child_process");
+    const which = execSync(process.platform === "win32" ? "where ffmpeg" : "which ffmpeg", { encoding: "utf8", timeout: 5000 });
+    ffmpegDir = path.dirname(which.trim().split("\n")[0]);
+  } catch {}
+}
 
 const cacheDir = path.join(__dirname, "..", "temp");
 const isWin = process.platform === "win32";
@@ -71,13 +78,17 @@ export async function downloadAudio(videoUrl) {
   const out = path.join(cacheDir, `audio_%(id)s.${ext}`);
   const expectedPath = vid ? path.join(cacheDir, `audio_${vid}.${ext === "%(ext)s" ? "webm" : ext}`) : null;
   const args = [
-    videoUrl, "-f", "bestaudio",
+    videoUrl,
     "--output", out, "--no-part", "--no-mtime",
     "--no-check-certificates", "--no-warnings",
     "--extractor-retries", "3", "--throttled-rate", "100M",
     "--add-header", "User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
   ];
-  if (ffmpegDir) args.push("--extract-audio", "--audio-format", "mp3", "--ffmpeg-location", ffmpegDir);
+  if (ffmpegDir) {
+    args.push("--extract-audio", "--audio-format", "mp3", "--ffmpeg-location", ffmpegDir);
+  } else {
+    args.push("-f", "bestaudio");
+  }
 
   return new Promise((resolve, reject) => {
     let err = "";
