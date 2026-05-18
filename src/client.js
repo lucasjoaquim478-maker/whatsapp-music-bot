@@ -110,13 +110,11 @@ export function createClient(onMessage, dash = {}) {
     c.initialize().catch(e => {
       const msg = e?.message || String(e);
       console.error("Erro ao iniciar cliente:", msg);
-      if (msg.includes("CERT") || msg.includes("certificate")) {
-        console.log("⚠️ Erro de certificado - limpando sessão...");
-        const sessionPath = process.env.RAILWAY_VOLUME_MOUNT_PATH || "./session";
-        try { fs.rmSync(sessionPath, { recursive: true, force: true }); } catch {}
-        try { fs.rmSync(".wwebjs_auth", { recursive: true, force: true }); } catch {}
-        try { fs.rmSync(".wwebjs_cache", { recursive: true, force: true }); } catch {}
-      }
+      console.log("⚠️ Limpando sessão para nova tentativa...");
+      const sessionPath = process.env.RAILWAY_VOLUME_MOUNT_PATH || "./session";
+      try { fs.rmSync(sessionPath, { recursive: true, force: true }); } catch {}
+      try { fs.rmSync(".wwebjs_auth", { recursive: true, force: true }); } catch {}
+      try { fs.rmSync(".wwebjs_cache", { recursive: true, force: true }); } catch {}
       cleanup();
       releaseReady();
       const delay = Math.min(10000 * Math.pow(2, retries), 120000);
